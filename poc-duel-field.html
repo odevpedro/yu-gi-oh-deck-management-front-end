@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Yu-Gi-Oh! Duel Field POC</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Exo+2:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="duel-field.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+  <!-- ── Loading overlay ── -->
+  <div class="loading-overlay hidden" id="loadingOverlay">
+    <div class="loading-title">DEPTH ENGINE</div>
+    <div class="loading-bar">
+      <div class="loading-row">
+        <span id="loadStatusText">Aguardando...</span>
+        <span id="loadStatusPct">0%</span>
+      </div>
+      <div class="loading-track">
+        <div class="loading-fill" id="loadFill"></div>
+      </div>
+      <div class="loading-log" id="loadLog"></div>
+    </div>
+  </div>
+
+  <!-- ── HUD ── -->
+  <header class="hud">
+    <div class="player-info">
+      <div class="avatar">&#9876;</div>
+      <div>
+        <div class="player-name">KAIBA</div>
+        <div class="lp-wrap">
+          <div class="lp-label">LIFE POINTS</div>
+          <div class="lp-bar"><div class="lp-fill red"></div></div>
+        </div>
+      </div>
+      <div class="lp-val">6000</div>
+    </div>
+
+    <div class="turn-block">
+      <div class="turn-num">TURNO 3</div>
+      <div class="turn-phase">MAIN PHASE 1</div>
+    </div>
+
+    <div class="player-info">
+      <div class="lp-val">8000</div>
+      <div>
+        <div class="player-name" style="text-align:right">VOCE</div>
+        <div class="lp-wrap" style="align-items:flex-end">
+          <div class="lp-label">LIFE POINTS</div>
+          <div class="lp-bar"><div class="lp-fill blue"></div></div>
+        </div>
+      </div>
+      <div class="avatar gold">&#128737;</div>
+    </div>
+  </header>
+
+  <!-- ── Duel Field ── -->
+  <main class="duel-field">
+
+    <!-- Opponent side (CSS rotates 180 deg) -->
+    <section class="field-side field-side--opponent">
+      <div class="field-grid">
+        <div class="zone zone--field"><div class="zone-label">FIELD</div></div>
+        <div class="zone zone--monster"><div class="zone-label">MONSTER</div></div>
+        <div class="zone zone--monster"><div class="zone-label">MONSTER</div></div>
+        <div class="zone zone--monster"><div class="zone-label">MONSTER</div></div>
+        <div class="zone zone--monster"><div class="zone-label">MONSTER</div></div>
+        <div class="zone zone--monster"><div class="zone-label">MONSTER</div></div>
+        <div class="zone zone--gy"><div class="zone-label">GRAVEYARD</div></div>
+      </div>
+      <div class="field-grid">
+        <div class="zone zone--extra"><div class="zone-label">EXTRA DECK</div></div>
+        <div class="zone zone--spell"><div class="zone-label">PENDULUM</div></div>
+        <div class="zone zone--spell"><div class="zone-label">SPELL/TRAP</div></div>
+        <div class="zone zone--spell"><div class="zone-label">SPELL/TRAP</div></div>
+        <div class="zone zone--spell"><div class="zone-label">SPELL/TRAP</div></div>
+        <div class="zone zone--spell"><div class="zone-label">PENDULUM</div></div>
+        <div class="zone zone--deck"><div class="zone-label">DECK</div></div>
+      </div>
+    </section>
+
+    <div class="field-divider"></div>
+
+    <!-- Player side -->
+    <section class="field-side field-side--player">
+
+      <!-- Monster zones — interactive drop targets -->
+      <div class="field-grid">
+        <div class="zone zone--field"><div class="zone-label">FIELD</div></div>
+        <div id="playerZones" style="display:contents">
+          <div class="zone zone--monster" data-zone="0"><div class="zone-label">MONSTER</div></div>
+          <div class="zone zone--monster" data-zone="1"><div class="zone-label">MONSTER</div></div>
+          <div class="zone zone--monster" data-zone="2"><div class="zone-label">MONSTER</div></div>
+          <div class="zone zone--monster" data-zone="3"><div class="zone-label">MONSTER</div></div>
+          <div class="zone zone--monster" data-zone="4"><div class="zone-label">MONSTER</div></div>
+        </div>
+        <div class="zone zone--gy"><div class="zone-label">GRAVEYARD</div></div>
+      </div>
+
+      <!-- Spell/Trap zones -->
+      <div class="field-grid">
+        <div class="zone zone--extra"><div class="zone-label">EXTRA DECK</div></div>
+        <div class="zone zone--spell"><div class="zone-label">PENDULUM</div></div>
+        <div class="zone zone--spell"><div class="zone-label">SPELL/TRAP</div></div>
+        <div class="zone zone--spell"><div class="zone-label">SPELL/TRAP</div></div>
+        <div class="zone zone--spell"><div class="zone-label">SPELL/TRAP</div></div>
+        <div class="zone zone--spell"><div class="zone-label">PENDULUM</div></div>
+        <div class="zone zone--deck"><div class="zone-label">DECK</div></div>
+      </div>
+
+      <!-- Hand -->
+      <div class="hand" id="hand"></div>
+
+    </section>
+  </main>
+
+  <div class="instruction" id="instruction">ARRASTE UMA CARTA DA MAO ATE UMA ZONA DE MONSTRO</div>
+
+  <script type="module" src="duel-field.js"></script>
+</body>
+</html>

@@ -1,0 +1,437 @@
+/* ═══════════════════════════════════════════
+   duel-field.css — Yu-Gi-Oh! Duel Field POC
+   ═══════════════════════════════════════════ */
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --c-bg:         #04030a;
+  --c-surface:    #080614;
+  --c-blue:       #00b4ff;
+  --c-gold:       #ffc94a;
+  --c-green:      #00ff88;
+  --c-red:        #ff4466;
+  --c-muted:      rgba(255,255,255,.12);
+  --c-text:       #b0b8cc;
+
+  /* zone border colors */
+  --z-monster:    rgba(180,110,40,.7);
+  --z-spell:      rgba(0,160,180,.7);
+  --z-field:      rgba(0,200,80,.7);
+  --z-gy:         rgba(180,40,60,.7);
+  --z-deck:       rgba(180,120,30,.7);
+  --z-extra:      rgba(120,40,180,.7);
+  --z-emz:        rgba(0,160,220,.7);
+  --z-banish:     rgba(160,160,160,.5);
+
+  /* card dimensions */
+  --card-w: 85px;
+  --card-h: 124px;  /* ratio 0.685 ≈ real card 59/86 */
+  --zone-gap: 8px;
+}
+
+/* ── Body ── */
+body {
+  background: var(--c-bg);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Exo 2', sans-serif;
+  color: var(--c-text);
+  overflow-x: hidden;
+  user-select: none;
+}
+
+/* ── Loading overlay ── */
+.loading-overlay {
+  position: fixed; inset: 0; z-index: 900;
+  background: rgba(4,3,16,.9);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  backdrop-filter: blur(6px);
+}
+.loading-overlay.hidden { display: none; }
+.loading-title {
+  font-family: 'Orbitron', monospace;
+  font-size: .72rem; color: var(--c-blue);
+  letter-spacing: .2em; margin-bottom: 20px;
+}
+.loading-bar {
+  width: 260px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.loading-row {
+  display: flex; justify-content: space-between;
+  font-size: .62rem; color: var(--c-muted);
+}
+.loading-row span:last-child { color: var(--c-green); }
+.loading-track { height: 2px; background: rgba(255,255,255,.06); }
+.loading-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--c-blue), var(--c-green));
+  width: 0%; transition: width .3s;
+}
+.loading-log { font-size: .6rem; color: rgba(0,180,255,.45); text-align: center; }
+
+/* ── HUD ── */
+.hud {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 20px;
+  background: rgba(4,3,20,.97);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  flex-shrink: 0; z-index: 10;
+}
+.player-info { display: flex; align-items: center; gap: 10px; }
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 1.5px solid var(--c-blue);
+  background: linear-gradient(135deg, #0a1a3a, #1a2a5a);
+  display: flex; align-items: center; justify-content: center;
+  font-size: .85rem;
+  box-shadow: 0 0 12px rgba(0,180,255,.35);
+}
+.avatar.gold { border-color: var(--c-gold); box-shadow: 0 0 12px rgba(255,201,74,.35); }
+.player-name {
+  font-family: 'Orbitron', monospace; font-size: .68rem;
+  font-weight: 700; letter-spacing: .1em; color: #fff;
+}
+.lp-wrap { display: flex; flex-direction: column; gap: 3px; }
+.lp-label { font-size: .5rem; color: rgba(255,255,255,.3); font-family: 'Orbitron', monospace; letter-spacing: .12em; }
+.lp-bar  { width: 100px; height: 3px; background: rgba(255,255,255,.07); border-radius: 2px; overflow: hidden; }
+.lp-fill { height: 100%; border-radius: 2px; }
+.lp-fill.blue { background: linear-gradient(90deg, #0044ff, var(--c-blue)); width: 100%; }
+.lp-fill.red  { background: linear-gradient(90deg, #ff2244, var(--c-red)); width: 75%; }
+.lp-val { font-family: 'Orbitron', monospace; font-size: .65rem; color: var(--c-gold); }
+.turn-block { text-align: center; }
+.turn-num  { font-family: 'Orbitron', monospace; font-size: .6rem; letter-spacing: .15em; color: var(--c-green); }
+.turn-phase { font-size: .5rem; color: rgba(255,255,255,.3); letter-spacing: .1em; margin-top: 2px; }
+
+/* ── Main field ── */
+.duel-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background:
+    radial-gradient(ellipse 90% 60% at 50% 50%, rgba(0,20,60,.5) 0%, transparent 70%),
+    linear-gradient(180deg, #03030e 0%, #05051a 50%, #03030e 100%);
+  overflow: visible;
+}
+
+/* subtle grid */
+.duel-field::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,60,120,.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,60,120,.06) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none; z-index: 0;
+}
+
+/* ── Field side (each player) ── */
+.field-side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  position: relative; z-index: 1;
+}
+
+.field-side--opponent { transform: rotate(180deg); }
+
+/* ── Field divider ── */
+.field-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 5%, var(--c-blue) 30%, var(--c-blue) 70%, transparent 95%);
+  opacity: .2; flex-shrink: 0; margin: 0 32px; z-index: 1;
+}
+
+/* ══════════════════════════════
+   PLAYMAT GRID
+   7 columns, 3 rows per side
+   ══════════════════════════════ */
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(7, var(--card-w));
+  grid-template-rows: auto auto auto;
+  gap: var(--zone-gap);
+  justify-items: center;
+  align-items: start;
+}
+
+
+
+/* ── Zone base ── */
+.zone {
+  width: var(--card-w);
+  height: var(--card-h);
+  border-radius: 5px;
+  border: 1px solid;
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color .2s, box-shadow .2s, background .2s;
+  background: rgba(0,0,0,.35);
+}
+
+.zone-label {
+  position: absolute; bottom: 5px; left: 0; right: 0;
+  text-align: center;
+  font-family: 'Orbitron', monospace;
+  font-size: .38rem; letter-spacing: .06em;
+  color: rgba(255,255,255,.25);
+  pointer-events: none;
+}
+
+/* zone type colors */
+.zone--monster { border-color: var(--z-monster); }
+.zone--monster:hover { border-color: rgba(220,140,50,.9); box-shadow: 0 0 10px rgba(180,110,40,.3); }
+
+.zone--spell   { border-color: var(--z-spell); }
+.zone--spell:hover { border-color: rgba(0,200,220,.9); box-shadow: 0 0 10px rgba(0,160,180,.3); }
+
+.zone--field   { border-color: var(--z-field); }
+.zone--gy      { border-color: var(--z-gy); }
+.zone--deck    { border-color: var(--z-deck); }
+.zone--extra   { border-color: var(--z-extra); }
+.zone--emz     { border-color: var(--z-emz); }
+.zone--banish  { border-color: var(--z-banish); }
+
+/* empty (non-interactive) zones */
+.zone--empty {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* drop target state */
+.zone.drop-target {
+  border-color: var(--c-green) !important;
+  background: rgba(0,255,136,.07);
+  animation: pulse-zone .9s ease-in-out infinite;
+}
+@keyframes pulse-zone {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0,255,136,.3); }
+  50%       { box-shadow: 0 0 14px 3px rgba(0,255,136,.2); }
+}
+
+.zone.occupied {
+  cursor: default;
+}
+
+/* zone card inner (three.js canvas) */
+.zone-canvas-wrap {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+}
+.zone-canvas-wrap canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* summon flash */
+.zone.flash::after {
+  content: '';
+  position: absolute; inset: -4px; border-radius: 7px;
+  background: radial-gradient(circle, rgba(0,255,136,.6), transparent 70%);
+  animation: flash-out .55s ease-out forwards;
+  pointer-events: none; z-index: 10;
+}
+@keyframes flash-out { from { opacity: .9; } to { opacity: 0; } }
+
+/* summon pop */
+@keyframes summon-pop {
+  0%   { transform: scale(.25) rotate(-10deg); opacity: 0; }
+  65%  { transform: scale(1.08) rotate(2deg);  opacity: 1; }
+  100% { transform: scale(1)    rotate(0deg);  opacity: 1; }
+}
+.zone.summoning .zone-canvas-wrap {
+  animation: summon-pop .45s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+
+/* ═══════════════════════════════════════
+   POC3 HAND — exact copy, zero changes
+   ═══════════════════════════════════════ */
+.hand {
+  position: relative;
+  width: 700px;
+  height: 300px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  margin-top: 16px;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.card-wrap {
+  position: absolute;
+  bottom: 0;
+  width: 148px;
+  height: 216px;
+  cursor: grab;
+  transform-origin: bottom center;
+  transform: var(--fan);
+  transition: transform .35s cubic-bezier(.23,1,.32,1);
+  z-index: var(--z, 1);
+  --rx: 0deg; --ry: 0deg;
+  --mx: 50%;  --my: 50%;
+  --o: 0;
+  animation: hand-enter .55s cubic-bezier(.23,1,.32,1) both;
+  animation-delay: calc(var(--i) * 80ms);
+}
+@keyframes hand-enter {
+  from { opacity: 0; transform: var(--fan) translateY(60px); }
+  to   { opacity: 1; transform: var(--fan); }
+}
+.card-wrap:hover { --z: 100; }
+.card-wrap.is-dragging { cursor: grabbing; }
+
+.card-wrap .card {
+  width: 100%; height: 100%;
+  border-radius: 7px; overflow: hidden; position: relative;
+  transform: perspective(900px) rotateX(var(--rx)) rotateY(var(--ry)) translateZ(0);
+  transition: transform .08s linear;
+  border: 1.5px solid #2a2000;
+  box-shadow: 0 0 0 1px #000, 0 10px 40px rgba(0,0,0,.9), inset 0 0 0 1px rgba(255,200,80,.08);
+}
+.card-wrap[data-t="SPELL"] .card { border-color: #003d2e; }
+.card-wrap[data-t="TRAP"]  .card { border-color: #3d0025; }
+
+.card-wrap .art {
+  position: relative; width: 100%; height: 100%;
+  overflow: hidden; background: #0a0a0f;
+}
+.card-wrap .art img {
+  width: 100%; height: 100%; object-fit: cover;
+  object-position: top center; display: block;
+  filter: saturate(1.1) contrast(1.05);
+}
+
+/* 1 — Glare */
+.card-wrap .art::before {
+  content: ''; position: absolute; inset: 0; z-index: 2;
+  background: radial-gradient(circle at var(--mx) var(--my), rgba(255,255,255,.58) 0%, rgba(255,255,255,0) 45%);
+  mix-blend-mode: screen; filter: blur(3px);
+  opacity: var(--o); transition: opacity .25s; pointer-events: none;
+}
+
+/* 2 — Holo foil */
+.card-wrap .art::after {
+  content: ''; position: absolute; inset: 0; z-index: 3;
+  background: linear-gradient(
+    calc(120deg + var(--ry) * 3),
+    rgba(255,0,200,.4)   0%,
+    rgba(0,180,255,.4)  33%,
+    rgba(80,255,140,.3) 66%,
+    rgba(255,240,80,.35) 100%
+  );
+  background-size: 200% 200%;
+  background-position: var(--mx) var(--my);
+  mix-blend-mode: color-dodge;
+  opacity: calc(var(--o) * .85); transition: opacity .25s; pointer-events: none;
+}
+
+/* 3 — Sparkles */
+.card-wrap .sparkles {
+  position: absolute; inset: 0; z-index: 4;
+  pointer-events: none; mix-blend-mode: screen;
+  opacity: calc(var(--o) * .55); transition: opacity .25s;
+  background-image:
+    repeating-radial-gradient(circle at 18% 28%, rgba(255,255,255,.55) 0px, transparent 1.5px, transparent 22px),
+    repeating-radial-gradient(circle at 76% 68%, rgba(255,255,200,.4)  0px, transparent 1px,   transparent 16px),
+    repeating-radial-gradient(circle at 45% 82%, rgba(200,220,255,.35) 0px, transparent 2px,   transparent 28px),
+    repeating-radial-gradient(circle at 88% 14%, rgba(255,180,255,.4)  0px, transparent 1px,   transparent 18px);
+  animation: sparkle 3.5s linear infinite;
+}
+@keyframes sparkle {
+  0%   { background-position: 0%   0%,   100% 100%, 50%  0%,  0% 50%; }
+  100% { background-position: 100% 100%, 0%   0%,   50% 100%, 100% 50%; }
+}
+
+/* dragging ghost card (fixed position clone) */
+.drag-ghost {
+  position: fixed;
+  width: 148px; height: 216px;
+  pointer-events: none;
+  z-index: 9999;
+  transform-origin: center center;
+  transition: none;
+  filter: drop-shadow(0 16px 40px rgba(0,0,0,.9));
+}
+
+/* ghost inner card — replicates .card-wrap .card */
+.drag-ghost .card {
+  width: 100%; height: 100%;
+  border-radius: 7px; overflow: hidden; position: relative;
+  border: 1.5px solid rgba(0,255,136,.7);
+  box-shadow:
+    0 0 0 1px #000,
+    0 10px 40px rgba(0,0,0,.9),
+    0 0 24px rgba(0,255,136,.25),
+    inset 0 0 0 1px rgba(0,255,136,.15);
+}
+
+/* ghost art — replicates .card-wrap .art */
+.drag-ghost .art {
+  position: relative;
+  width: 100%; height: 100%;
+  overflow: hidden; background: #0a0a0f;
+}
+.drag-ghost .art img {
+  width: 100%; height: 100%; object-fit: cover;
+  object-position: top center; display: block;
+  filter: saturate(1.2) contrast(1.1) brightness(1.05);
+}
+
+/* glare — always on during drag */
+.drag-ghost .art::before {
+  content: ''; position: absolute; inset: 0; z-index: 2;
+  background: radial-gradient(circle at 50% 40%, rgba(255,255,255,.35) 0%, rgba(255,255,255,0) 55%);
+  mix-blend-mode: screen; pointer-events: none;
+}
+
+/* holo foil — always visible during drag */
+.drag-ghost .art::after {
+  content: ''; position: absolute; inset: 0; z-index: 3;
+  background: linear-gradient(
+    135deg,
+    rgba(255,0,200,.3)   0%,
+    rgba(0,180,255,.3)  33%,
+    rgba(80,255,140,.25) 66%,
+    rgba(255,240,80,.3) 100%
+  );
+  mix-blend-mode: color-dodge;
+  opacity: .7;
+  pointer-events: none;
+}
+
+/* sparkles on ghost */
+.drag-ghost .sparkles {
+  position: absolute; inset: 0; z-index: 4;
+  pointer-events: none; mix-blend-mode: screen; opacity: .5;
+  background-image:
+    repeating-radial-gradient(circle at 18% 28%, rgba(255,255,255,.55) 0px, transparent 1.5px, transparent 22px),
+    repeating-radial-gradient(circle at 76% 68%, rgba(255,255,200,.4)  0px, transparent 1px,   transparent 16px),
+    repeating-radial-gradient(circle at 45% 82%, rgba(200,220,255,.35) 0px, transparent 2px,   transparent 28px),
+    repeating-radial-gradient(circle at 88% 14%, rgba(255,180,255,.4)  0px, transparent 1px,   transparent 18px);
+  animation: sparkle 3.5s linear infinite;
+}
+
+/* ── Instruction chip ── */
+.instruction {
+  position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+  background: rgba(4,3,20,.92);
+  border: 1px solid var(--c-blue); border-radius: 20px;
+  padding: 6px 18px;
+  font-size: .65rem; color: var(--c-blue);
+  font-family: 'Orbitron', monospace; letter-spacing: .1em;
+  pointer-events: none; z-index: 800;
+  box-shadow: 0 0 14px rgba(0,180,255,.25);
+  white-space: nowrap;
+}

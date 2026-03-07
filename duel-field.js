@@ -1,3 +1,7 @@
+// ═══════════════════════════════════════════════════════
+// duel-field.js — Yu-Gi-Oh! Duel Field POC
+// ═══════════════════════════════════════════════════════
+
 import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js';
 
 env.allowLocalModels = false;
@@ -194,8 +198,10 @@ async function summonToField(wrapEl, card, zoneEl) {
       : await imageToDataURL(imageUrl);
 
     mountParallax(zoneEl, colorDataUrl, dc);
-    zoneEl.classList.add('summoning');
-    setTimeout(() => zoneEl.classList.remove('summoning'), 500);
+
+    // card-drop thud animation
+    zoneEl.classList.add('card-landing');
+    setTimeout(() => zoneEl.classList.remove('card-landing'), 500);
 
     setLoad(100, 'Carta invocada!', 'Shader ativo — mova o mouse');
     setTimeout(() => {
@@ -289,33 +295,27 @@ function buildHand(cards) {
     });
 
     // ── Drag & Drop ──
-    setupDrag(wrap, { id: c.id ?? i, url: img, type: t }, a, oy, ox, fan);
+    setupDrag(wrap, { id: c.id ?? i, url: rawImg, type: t }, a, oy, ox, fan);
 
     hand.appendChild(wrap);
   });
 }
 
 // ── Drag & Drop ───────────────────────────────────────────
-// Uses a "ghost" clone in fixed position so the card can
-// travel freely across the entire viewport. The original
-// card stays hidden in the hand while dragging.
 function setupDrag(wrapEl, card, angle, oy, ox, fan) {
   wrapEl.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     e.preventDefault();
 
-    const rect = wrapEl.getBoundingClientRect();
-
-    // Offset of cursor within the card
+    const rect  = wrapEl.getBoundingClientRect();
     const grabX = e.clientX - rect.left;
     const grabY = e.clientY - rect.top;
 
-    // --- Create ghost clone ---
+    // ghost clone
     const ghost = document.createElement('div');
     ghost.className = 'drag-ghost';
     ghost.style.left = rect.left + 'px';
     ghost.style.top  = rect.top  + 'px';
-
     const artImg = wrapEl.querySelector('.art img');
     ghost.innerHTML = `
       <div class="card">
@@ -326,51 +326,52 @@ function setupDrag(wrapEl, card, angle, oy, ox, fan) {
       </div>`;
     document.body.appendChild(ghost);
 
-    // Hide original
     wrapEl.style.opacity = '0';
     wrapEl.classList.add('is-dragging');
 
-    // Highlight drop zones
-    const zones = document.querySelectorAll('#playerZones .zone:not(.occupied)');
+    // only highlight zones that match card type
+    const validZoneSelector = validZones(card.type);
+    const zones = document.querySelectorAll(validZoneSelector);
     zones.forEach(z => z.classList.add('drop-target'));
 
-    // ── Mouse move ──
     const onMove = e => {
       ghost.style.left = (e.clientX - grabX) + 'px';
       ghost.style.top  = (e.clientY - grabY) + 'px';
-
-      // Tilt ghost toward movement direction
       const tilt = Math.max(-20, Math.min(20, (e.clientX - rect.left - grabX) * .05));
       ghost.style.transform = `rotate(${tilt}deg) scale(1.05)`;
     };
 
-    // ── Mouse up ──
     const onUp = async e => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-
-      // Remove ghost
       ghost.remove();
       zones.forEach(z => z.classList.remove('drop-target'));
       wrapEl.classList.remove('is-dragging');
 
-      // Check drop target
+      // drop only on valid zone for this card type
       const target = document.elementFromPoint(e.clientX, e.clientY)
-        ?.closest('#playerZones .zone:not(.occupied)');
+        ?.closest(`${validZoneSelector}:not(.occupied)`);
 
       if (target) {
         await summonToField(wrapEl, card, target);
       } else {
-        // Snap back
-        wrapEl.style.opacity  = '1';
+        wrapEl.style.opacity   = '1';
         wrapEl.style.transform = fan;
-        wrapEl.style.zIndex   = '';
+        wrapEl.style.zIndex    = '';
       }
     };
 
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   });
+}
+
+// Returns the CSS selector for valid drop zones based on card type
+function validZones(type) {
+  const t = (type || '').toUpperCase();
+  if (t.includes('SPELL') || t.includes('TRAP'))
+    return '#playerSpellZones .zone--spell';
+  return '#playerZones .zone--monster';
 }
 
 // ── Init ──────────────────────────────────────────────────

@@ -101,13 +101,15 @@
       </div>
 
       <!-- Spell/Trap zones -->
-      <div class="field-grid">
+      <div class="field-grid" id="playerSpellRow">
         <div class="zone zone--extra"><div class="zone-label">EXTRA DECK</div></div>
-        <div class="zone zone--spell"><div class="zone-label">PENDULUM</div></div>
-        <div class="zone zone--spell"><div class="zone-label">SPELL/TRAP</div></div>
-        <div class="zone zone--spell"><div class="zone-label">SPELL/TRAP</div></div>
-        <div class="zone zone--spell"><div class="zone-label">SPELL/TRAP</div></div>
-        <div class="zone zone--spell"><div class="zone-label">PENDULUM</div></div>
+        <div id="playerSpellZones" style="display:contents">
+          <div class="zone zone--spell" data-zone="s0"><div class="zone-label">PENDULUM</div></div>
+          <div class="zone zone--spell" data-zone="s1"><div class="zone-label">SPELL/TRAP</div></div>
+          <div class="zone zone--spell" data-zone="s2"><div class="zone-label">SPELL/TRAP</div></div>
+          <div class="zone zone--spell" data-zone="s3"><div class="zone-label">SPELL/TRAP</div></div>
+          <div class="zone zone--spell" data-zone="s4"><div class="zone-label">PENDULUM</div></div>
+        </div>
         <div class="zone zone--deck"><div class="zone-label">DECK</div></div>
       </div>
 

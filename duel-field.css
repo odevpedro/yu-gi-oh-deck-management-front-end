@@ -114,6 +114,7 @@ body {
   display: flex;
   flex-direction: column;
   position: relative;
+  padding-bottom: 310px; /* height of fixed hand */
   background:
     radial-gradient(ellipse 90% 60% at 50% 50%, rgba(0,20,60,.5) 0%, transparent 70%),
     linear-gradient(180deg, #03030e 0%, #05051a 50%, #03030e 100%);
@@ -258,18 +259,23 @@ body {
    POC3 HAND — exact copy, zero changes
    ═══════════════════════════════════════ */
 .hand {
-  position: relative;
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
   width: 700px;
   height: 300px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  margin-top: 16px;
-  flex-shrink: 0;
   overflow: visible;
+  z-index: 100;
+  pointer-events: none;
 }
 
+/* re-enable pointer on actual cards */
 .card-wrap {
+  pointer-events: all;
   position: absolute;
   bottom: 0;
   width: 148px;
@@ -421,6 +427,75 @@ body {
     repeating-radial-gradient(circle at 45% 82%, rgba(200,220,255,.35) 0px, transparent 2px,   transparent 28px),
     repeating-radial-gradient(circle at 88% 14%, rgba(255,180,255,.4)  0px, transparent 1px,   transparent 18px);
   animation: sparkle 3.5s linear infinite;
+}
+
+/* ══════════════════════════════════════
+   FIELD CARD — arte transbordando
+   Canvas ligeiramente maior que a zona,
+   centralizado, com fade nas bordas
+   ══════════════════════════════════════ */
+.zone-canvas-wrap {
+  position: absolute;
+  /* overflow 18% em cada lado — arte "sai" da carta */
+  width:  136%;
+  height: 136%;
+  top:  -18%;
+  left: -18%;
+  pointer-events: none;
+  z-index: 2;
+}
+.zone-canvas-wrap canvas {
+  width: 100% !important;
+  height: 100% !important;
+  /* fade suave nas 4 bordas — mantém ilusão de contenção */
+  -webkit-mask-image: radial-gradient(
+    ellipse 62% 62% at 50% 52%,
+    black 38%,
+    rgba(0,0,0,.6) 55%,
+    rgba(0,0,0,.15) 72%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 62% 62% at 50% 52%,
+    black 38%,
+    rgba(0,0,0,.6) 55%,
+    rgba(0,0,0,.15) 72%,
+    transparent 100%
+  );
+}
+
+/* keep zone border visible on top of canvas */
+.zone.occupied { overflow: visible; }
+.zone.occupied::before {
+  content: '';
+  position: absolute; inset: 0; z-index: 3;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1px rgba(0,180,255,.35);
+  pointer-events: none;
+}
+
+/* ══════════════════════════════════════
+   DROP THUD animation
+   ══════════════════════════════════════ */
+@keyframes card-drop {
+  0%   { transform: translateY(-60px) scale(.9);  opacity: 0; }
+  55%  { transform: translateY(6px)   scale(1.04); opacity: 1; }
+  72%  { transform: translateY(-3px)  scale(.98);  }
+  85%  { transform: translateY(2px)   scale(1.01); }
+  100% { transform: translateY(0)     scale(1);    opacity: 1; }
+}
+
+@keyframes zone-impact {
+  0%   { box-shadow: 0 0 0 0   rgba(0,255,136,.0); }
+  30%  { box-shadow: 0 0 18px 6px rgba(0,255,136,.5); }
+  100% { box-shadow: 0 0 0 0   rgba(0,255,136,.0); }
+}
+
+.zone.card-landing .zone-canvas-wrap {
+  animation: card-drop .45s cubic-bezier(.22,1,.36,1) forwards;
+}
+.zone.card-landing {
+  animation: zone-impact .5s ease-out forwards;
 }
 
 /* ── Instruction chip ── */

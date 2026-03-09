@@ -223,7 +223,146 @@ async function sobelEdgeGlow(zoneEl, dataUrl) {
     .finished.then(() => glowCanvas.remove());
 }
 
-// ── Summon to field ───────────────────────────────────────
+// ── Normal Summon FX ─────────────────────────────────────
+// Canvas procedural: burst de luz + anel expansivo + partículas
+function normalSummonFX(zoneEl) {
+  const ZW = zoneEl.clientWidth;
+  const ZH = zoneEl.clientHeight;
+
+  // canvas maior que a zona para o efeito vazar pelas bordas
+  const PAD = 80;
+  const CW  = ZW + PAD * 2;
+  const CH  = ZH + PAD * 2;
+  const cx  = CW / 2;
+  const cy  = CH / 2;
+
+  const cv  = document.createElement('canvas');
+  cv.width  = CW;
+  cv.height = CH;
+  cv.style.cssText = `
+    position:absolute;
+    left:${-PAD}px; top:${-PAD}px;
+    width:${CW}px; height:${CH}px;
+    pointer-events:none; z-index:10;
+    mix-blend-mode:screen;
+  `;
+  zoneEl.appendChild(cv);
+  const ctx = cv.getContext('2d');
+
+  // ── partículas ──
+  const PARTICLE_COUNT = 28;
+  const particles = Array.from({ length: PARTICLE_COUNT }, (_, i) => {
+    const angle  = (i / PARTICLE_COUNT) * Math.PI * 2 + Math.random() * 0.3;
+    const speed  = 1.8 + Math.random() * 2.2;
+    const size   = 1.5 + Math.random() * 2.5;
+    const life   = 0.6 + Math.random() * 0.4;
+    // alternate cyan and gold
+    const color  = i % 3 === 0
+      ? `255,200,50`   // gold
+      : i % 3 === 1
+        ? `0,220,255`  // cyan
+        : `180,255,180`; // pale green
+    return { angle, speed, size, life, color, x: cx, y: cy, age: 0 };
+  });
+
+  // ── timeline state ──
+  const DURATION = 900; // ms total
+  let start = null;
+
+  function draw(ts) {
+    if (!start) start = ts;
+    const t  = Math.min((ts - start) / DURATION, 1); // 0 → 1
+    const t2 = t * t;
+
+    ctx.clearRect(0, 0, CW, CH);
+
+    // ─ 1. Burst de luz radial (primeiros 30% do tempo) ─
+    if (t < 0.35) {
+      const bt   = t / 0.35;               // 0→1 dentro do burst
+      const brad = (ZW * 0.6) * bt;
+      const alpha = bt < 0.5
+        ? bt * 2                            // fade in
+        : 1 - (bt - 0.5) * 2;              // fade out
+
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, brad);
+      grad.addColorStop(0,   `rgba(255,255,255,${alpha * 0.9})`);
+      grad.addColorStop(0.3, `rgba(0,220,255,${alpha * 0.7})`);
+      grad.addColorStop(0.7, `rgba(0,180,255,${alpha * 0.3})`);
+      grad.addColorStop(1,   `rgba(0,0,0,0)`);
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, brad, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+
+    // ─ 2. Anel expansivo (começa em 15%, termina em 80%) ─
+    if (t > 0.12 && t < 0.82) {
+      const rt    = (t - 0.12) / 0.7;     // 0→1
+      const rRad  = (Math.max(ZW, ZH) * 0.85) * rt;
+      const rAlpha = rt < 0.3
+        ? rt / 0.3
+        : 1 - (rt - 0.3) / 0.7;
+
+      // anel externo — difuso
+      ctx.beginPath();
+      ctx.arc(cx, cy, rRad, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(0,200,255,${rAlpha * 0.35})`;
+      ctx.lineWidth   = 12 * (1 - rt * 0.6);
+      ctx.stroke();
+
+      // anel interno — nítido
+      ctx.beginPath();
+      ctx.arc(cx, cy, rRad * 0.85, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(180,240,255,${rAlpha * 0.6})`;
+      ctx.lineWidth   = 2;
+      ctx.stroke();
+    }
+
+    // ─ 3. Partículas ─
+    particles.forEach(p => {
+      p.age = Math.min(p.age + 0.022 * p.speed, p.life);
+      const pt    = p.age / p.life;
+      const dist  = pt * (ZW * 0.9);
+      p.x = cx + Math.cos(p.angle) * dist;
+      p.y = cy + Math.sin(p.angle) * dist;
+      const palpha = pt < 0.3 ? pt / 0.3 : 1 - (pt - 0.3) / 0.7;
+      const pSize  = p.size * (1 - pt * 0.5);
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, pSize, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${p.color},${palpha * 0.85})`;
+      ctx.shadowBlur   = 6;
+      ctx.shadowColor  = `rgba(${p.color},0.8)`;
+      ctx.fill();
+      ctx.shadowBlur   = 0;
+    });
+
+    // ─ 4. Brilho central persistente (primeiros 50%) ─
+    if (t < 0.55) {
+      const ct   = t / 0.55;
+      const calpha = 1 - ct;
+      const cGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, ZW * 0.25);
+      cGrad.addColorStop(0,   `rgba(255,255,255,${calpha * 0.95})`);
+      cGrad.addColorStop(0.4, `rgba(0,220,255,${calpha * 0.5})`);
+      cGrad.addColorStop(1,   `rgba(0,0,0,0)`);
+      ctx.beginPath();
+      ctx.arc(cx, cy, ZW * 0.25, 0, Math.PI * 2);
+      ctx.fillStyle = cGrad;
+      ctx.fill();
+    }
+
+    if (t < 1) {
+      requestAnimationFrame(draw);
+    } else {
+      cv.remove();
+    }
+  }
+
+  requestAnimationFrame(draw);
+}
+
+
 async function summonToField(wrapEl, card, zoneEl) {
   zoneEl.classList.add('occupied');
   const lbl = zoneEl.querySelector('.zone-label');
@@ -271,8 +410,11 @@ async function summonToField(wrapEl, card, zoneEl) {
     zoneEl.classList.add('card-landing');
     setTimeout(() => zoneEl.classList.remove('card-landing'), 500);
 
-    // ── Sobel edge glow (runs after image painted) ──
-    requestAnimationFrame(() => sobelEdgeGlow(zoneEl, dataUrl));
+    // ── Normal Summon FX: burst + ring + particles (instant, Canvas) ──
+    normalSummonFX(zoneEl);
+
+    // ── Sobel edge glow: começa após o summon FX (1s de delay) ──
+    setTimeout(() => requestAnimationFrame(() => sobelEdgeGlow(zoneEl, dataUrl)), 1000);
 
     document.getElementById('instruction').textContent =
       'MOVA O MOUSE SOBRE A CARTA NO CAMPO';
@@ -443,7 +585,7 @@ function validZones(type) {
 // ── Init ──────────────────────────────────────────────────
 (async () => {
   try {
-    const res  = await fetch('https://db.ygoprodeck.com/api/v7/cardinfo.php?num=7&offset=10');
+    const res  = await fetch('https://db.ygoprodeck.com/api/v7/cardinfo.php?num=9&offset=40');
     const data = await res.json();
     buildHand(data.data);
   } catch (e) {

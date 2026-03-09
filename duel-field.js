@@ -148,13 +148,37 @@ function mountParallax(zoneEl, colorDataUrl, depthCanvas) {
   })();
 }
 
+// ── Dominant color extractor ─────────────────────────────
+// Samples a grid of pixels, skips near-black/near-white, returns [r,g,b]
+function dominantColor(px, W, H) {
+  let rSum = 0, gSum = 0, bSum = 0, count = 0;
+  const step = Math.max(1, Math.floor(W / 20));
+  for (let y = 0; y < H; y += step) {
+    for (let x = 0; x < W; x += step) {
+      const i = (y * W + x) * 4;
+      const r = px[i], g = px[i+1], b = px[i+2];
+      const brightness = (r + g + b) / 3;
+      if (brightness < 25 || brightness > 230) continue; // skip black/white
+      rSum += r; gSum += g; bSum += b; count++;
+    }
+  }
+  if (!count) return [0, 200, 255]; // fallback cyan
+  // boost saturation: push away from grey
+  let r = rSum/count, g = gSum/count, b = bSum/count;
+  const avg = (r + g + b) / 3;
+  const sat = 2.2;
+  r = Math.min(255, Math.max(0, avg + (r - avg) * sat));
+  g = Math.min(255, Math.max(0, avg + (g - avg) * sat));
+  b = Math.min(255, Math.max(0, avg + (b - avg) * sat));
+  return [Math.round(r), Math.round(g), Math.round(b)];
+}
+
 // ── Sobel Edge Glow ───────────────────────────────────────
-// Detects edges of the card art and animates a glow on them
+// Edges glow with the dominant color of the card art
 async function sobelEdgeGlow(zoneEl, dataUrl) {
   const W = zoneEl.clientWidth;
   const H = zoneEl.clientHeight;
 
-  // ── offscreen: draw source image ──
   const src = document.createElement('canvas');
   src.width = W; src.height = H;
   const sCtx = src.getContext('2d');
@@ -167,7 +191,10 @@ async function sobelEdgeGlow(zoneEl, dataUrl) {
 
   const { data: px } = sCtx.getImageData(0, 0, W, H);
 
-  // ── Sobel kernel ──
+  // extract dominant color BEFORE Sobel
+  const [dr, dg, db] = dominantColor(px, W, H);
+
+  // Sobel kernel
   const edge = new Float32Array(W * H);
   for (let y = 1; y < H - 1; y++) {
     for (let x = 1; x < W - 1; x++) {
@@ -182,46 +209,41 @@ async function sobelEdgeGlow(zoneEl, dataUrl) {
     }
   }
 
-  // ── glow canvas overlay ──
   const glowCanvas = document.createElement('canvas');
   glowCanvas.width = W; glowCanvas.height = H;
   glowCanvas.style.cssText = `
     position:absolute; inset:0; z-index:5; pointer-events:none;
     mix-blend-mode:screen; border-radius:5px;
   `;
-
   const gCtx = glowCanvas.getContext('2d');
   const out  = gCtx.createImageData(W, H);
 
-  // neon cyan-to-gold palette — matches field aesthetic
   for (let i = 0; i < W * H; i++) {
     const v = edge[i];
-    if (v < 18) continue; // ignore noise
+    if (v < 18) continue;
     const t = v / 255;
-    // cyan (0,220,255) → gold (255,200,50)
-    out.data[i*4+0] = Math.round(t * (v > 128 ? 255 : 0));
-    out.data[i*4+1] = Math.round(t * 210);
-    out.data[i*4+2] = Math.round(t * (v > 128 ? 50 : 255));
+    out.data[i*4+0] = Math.round(dr * t);
+    out.data[i*4+1] = Math.round(dg * t);
+    out.data[i*4+2] = Math.round(db * t);
     out.data[i*4+3] = Math.round(t * 255);
   }
   gCtx.putImageData(out, 0, 0);
 
-  // soft blur so edges glow instead of being sharp lines
   gCtx.filter = 'blur(2px)';
   gCtx.drawImage(glowCanvas, 0, 0);
   gCtx.filter = 'none';
 
   zoneEl.appendChild(glowCanvas);
 
-  // ── animate: fade in → hold → fade out ──
   glowCanvas.animate([
-    { opacity: 0,   filter: 'blur(6px)' },
-    { opacity: 1,   filter: 'blur(2px)', offset: 0.15 },
-    { opacity: 0.85,filter: 'blur(2px)', offset: 0.6  },
-    { opacity: 0,   filter: 'blur(8px)' },
+    { opacity: 0,    filter: 'blur(6px)'  },
+    { opacity: 1,    filter: 'blur(2px)',  offset: 0.15 },
+    { opacity: 0.85, filter: 'blur(2px)',  offset: 0.6  },
+    { opacity: 0,    filter: 'blur(8px)'  },
   ], { duration: 2400, easing: 'ease-in-out', fill: 'forwards' })
     .finished.then(() => glowCanvas.remove());
 }
+
 
 // ── Normal Summon FX ─────────────────────────────────────
 // Canvas procedural: burst de luz + anel expansivo + partículas
@@ -362,62 +384,328 @@ function normalSummonFX(zoneEl) {
   requestAnimationFrame(draw);
 }
 
+// ── Special Summon FX ────────────────────────────────────
+function specialSummonFX(zoneEl, cardType) {
+  const ZW = zoneEl.clientWidth, ZH = zoneEl.clientHeight;
+  const PAD = 90, CW = ZW+PAD*2, CH = ZH+PAD*2;
+  const cx = CW/2, cy = CH/2;
+
+  const cv = document.createElement('canvas');
+  cv.width=CW; cv.height=CH;
+  cv.style.cssText=`position:absolute;left:${-PAD}px;top:${-PAD}px;
+    width:${CW}px;height:${CH}px;pointer-events:none;z-index:10;mix-blend-mode:screen;`;
+  zoneEl.appendChild(cv);
+  const ctx = cv.getContext('2d');
+  const t = cardType.toUpperCase();
+  let drawFn;
+
+  if (t.includes('FUSION')) {
+    drawFn = p => {
+      [0,1,2].forEach(s => {
+        const off = (s/3)*Math.PI*2;
+        ctx.beginPath();
+        for(let a=0;a<Math.PI*6;a+=0.08){
+          const r=(Math.PI*6-a)/(Math.PI*6)*(Math.max(CW,CH)/2)*(1-p*0.8);
+          const x=cx+Math.cos(a*2+off+p*8)*r, y=cy+Math.sin(a*2+off+p*8)*r*0.6;
+          a===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+        }
+        ctx.strokeStyle=`rgba(180,0,255,${(1-p)*0.6})`; ctx.lineWidth=1.5; ctx.stroke();
+      });
+      if(p>0.5){
+        const pt=(p-0.5)/0.5;
+        const g=ctx.createRadialGradient(cx,cy,0,cx,cy,ZW*0.4*pt);
+        g.addColorStop(0,`rgba(255,200,255,${pt*0.9})`); g.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,ZW*0.4*pt,0,Math.PI*2); ctx.fill();
+      }
+    };
+  } else if (t.includes('SYNCHRO')) {
+    drawFn = p => {
+      [0,0.2,0.4].forEach((delay,i) => {
+        const pp=Math.max(0,Math.min(1,(p-delay)/(1-delay)));
+        const r=pp*Math.max(CW,CH)*0.6;
+        const a=pp<0.5?pp*2:(1-pp)*2;
+        ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
+        ctx.strokeStyle=`rgba(${['255,255,255','200,240,255','150,200,255'][i]},${a*0.7})`;
+        ctx.lineWidth=(3-i)*(1-pp*0.7); ctx.stroke();
+      });
+      if(p<0.3){
+        const pt=p/0.3;
+        const g=ctx.createRadialGradient(cx,cy,0,cx,cy,ZW*0.5);
+        g.addColorStop(0,`rgba(255,255,255,${(1-pt)*0.95})`); g.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,ZW*0.5,0,Math.PI*2); ctx.fill();
+      }
+    };
+  } else if (t.includes('XYZ')) {
+    const stars=Array.from({length:20},(_,i)=>({angle:(i/20)*Math.PI*2,dist:.3+Math.random()*.5,size:1+Math.random()*2.5}));
+    drawFn = p => {
+      const g=ctx.createRadialGradient(cx,cy,0,cx,cy,ZW*0.8);
+      g.addColorStop(0,`rgba(0,0,0,${(1-p)*0.85})`); g.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,ZW*0.8,0,Math.PI*2); ctx.fill();
+      stars.forEach(s=>{
+        const a=s.angle+p*6, r=s.dist*ZW*(1-p*0.6);
+        const x=cx+Math.cos(a)*r, y=cy+Math.sin(a)*r*0.5;
+        const alpha=p<0.7?.8:(1-p)/.3*.8;
+        ctx.beginPath(); ctx.arc(x,y,s.size*(1-p*.5),0,Math.PI*2);
+        ctx.fillStyle=`rgba(255,210,0,${alpha})`;
+        ctx.shadowBlur=8; ctx.shadowColor='rgba(255,210,0,0.9)'; ctx.fill(); ctx.shadowBlur=0;
+      });
+    };
+  } else if (t.includes('LINK')) {
+    const nodes=Array.from({length:6},(_,i)=>({
+      x:cx+Math.cos((i/6)*Math.PI*2)*ZW*.45,
+      y:cy+Math.sin((i/6)*Math.PI*2)*ZH*.45,
+    }));
+    drawFn = p => {
+      nodes.forEach(n=>{
+        const pp=Math.min(1,p*2);
+        const x2=cx+(n.x-cx)*pp, y2=cy+(n.y-cy)*pp;
+        const alpha=p>.7?(1-p)/.3:.7;
+        ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x2,y2);
+        ctx.strokeStyle=`rgba(0,160,255,${alpha})`; ctx.lineWidth=1.5; ctx.stroke();
+        if(pp>.8){
+          ctx.beginPath(); ctx.arc(x2,y2,3,0,Math.PI*2);
+          ctx.fillStyle=`rgba(0,220,255,${alpha})`;
+          ctx.shadowBlur=10; ctx.shadowColor='rgba(0,220,255,1)'; ctx.fill(); ctx.shadowBlur=0;
+        }
+      });
+      const ha=p<.5?p*2:(1-p)*2;
+      ctx.beginPath();
+      for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2-Math.PI/6,r=ZW*.25;i===0?ctx.moveTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r):ctx.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);}
+      ctx.closePath(); ctx.strokeStyle=`rgba(0,220,255,${ha*.8})`; ctx.lineWidth=2; ctx.stroke();
+    };
+  } else {
+    // Ritual
+    drawFn = p => {
+      for(let i=0;i<12;i++){
+        const a=(i/12)*Math.PI*2+p*.5, len=ZW*.7*(1-p*.4);
+        ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(a)*len,cy+Math.sin(a)*len);
+        ctx.strokeStyle=`rgba(180,200,255,${(1-p)*.55})`; ctx.lineWidth=1; ctx.stroke();
+      }
+      const g=ctx.createRadialGradient(cx,cy,0,cx,cy,ZW*.3);
+      g.addColorStop(0,`rgba(200,220,255,${(1-p)*.7})`); g.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,ZW*.3,0,Math.PI*2); ctx.fill();
+    };
+  }
+
+  const DUR=1100; let start=null;
+  (function draw(ts){
+    if(!start)start=ts;
+    const p=Math.min((ts-start)/DUR,1);
+    ctx.clearRect(0,0,CW,CH); drawFn(p);
+    if(p<1)requestAnimationFrame(draw); else cv.remove();
+  })(performance.now());
+}
+
+// ── Spell / Trap Activation FX ───────────────────────────
+function spellActivationFX(zoneEl, isSpell) {
+  const ZW=zoneEl.clientWidth, ZH=zoneEl.clientHeight;
+  const PAD=60, CW=ZW+PAD*2, CH=ZH+PAD*2, cx=CW/2, cy=CH/2;
+  const cv=document.createElement('canvas');
+  cv.width=CW; cv.height=CH;
+  cv.style.cssText=`position:absolute;left:${-PAD}px;top:${-PAD}px;
+    width:${CW}px;height:${CH}px;pointer-events:none;z-index:10;mix-blend-mode:screen;`;
+  zoneEl.appendChild(cv);
+  const ctx=cv.getContext('2d');
+  const color=isSpell?'0,220,100':'180,0,220';
+  const sides=isSpell?5:3;
+  const DUR=800; let start=null;
+  (function draw(ts){
+    if(!start)start=ts;
+    const p=Math.min((ts-start)/DUR,1);
+    ctx.clearRect(0,0,CW,CH);
+    const r=ZW*.42*(1+p*.3);
+    const rot=p*Math.PI*(isSpell?1:2);
+    const alpha=p<.4?p/.4:(1-p)/.6;
+    ctx.beginPath();
+    for(let i=0;i<sides;i++){const a=(i/sides)*Math.PI*2+rot-Math.PI/2;i===0?ctx.moveTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r):ctx.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);}
+    ctx.closePath();
+    ctx.strokeStyle=`rgba(${color},${alpha*.85})`; ctx.lineWidth=2; ctx.stroke();
+    ctx.fillStyle=`rgba(${color},${alpha*.12})`; ctx.fill();
+    const g=ctx.createRadialGradient(cx,cy,0,cx,cy,ZW*.5);
+    g.addColorStop(0,`rgba(${color},${alpha*.4})`); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,ZW*.5,0,Math.PI*2); ctx.fill();
+    if(p<1)requestAnimationFrame(draw); else cv.remove();
+  })(performance.now());
+}
+
+// ── Attack FX ────────────────────────────────────────────
+function attackFX(attackerEl, targetEl, onImpact) {
+  const aR=attackerEl.getBoundingClientRect(), tR=targetEl.getBoundingClientRect();
+  const x1=aR.left+aR.width/2, y1=aR.top+aR.height/2;
+  const x2=tR.left+tR.width/2, y2=tR.top+tR.height/2;
+  const cv=document.createElement('canvas');
+  cv.width=window.innerWidth; cv.height=window.innerHeight;
+  cv.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:500;mix-blend-mode:screen;';
+  document.body.appendChild(cv);
+  const ctx=cv.getContext('2d');
+  const DUR=420; let start=null;
+  (function draw(ts){
+    if(!start)start=ts;
+    const p=Math.min((ts-start)/DUR,1);
+    ctx.clearRect(0,0,cv.width,cv.height);
+    const px=x1+(x2-x1)*p, py=y1+(y2-y1)*p;
+    const tx=x1+(x2-x1)*Math.max(0,p-.18), ty=y1+(y2-y1)*Math.max(0,p-.18);
+    const g=ctx.createLinearGradient(tx,ty,px,py);
+    g.addColorStop(0,'rgba(255,255,255,0)');
+    g.addColorStop(.5,'rgba(0,200,255,.5)');
+    g.addColorStop(1,'rgba(255,255,255,.95)');
+    ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(px,py);
+    ctx.strokeStyle=g; ctx.lineWidth=3; ctx.stroke();
+    ctx.beginPath(); ctx.arc(px,py,5,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,255,255,.95)';
+    ctx.shadowBlur=16; ctx.shadowColor='rgba(0,200,255,1)'; ctx.fill(); ctx.shadowBlur=0;
+    if(p<1){requestAnimationFrame(draw);}
+    else{
+      cv.remove();
+      // impact shockwave
+      const ic=document.createElement('canvas');
+      ic.width=window.innerWidth; ic.height=window.innerHeight;
+      ic.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:500;mix-blend-mode:screen;';
+      document.body.appendChild(ic);
+      const ictx=ic.getContext('2d');
+      const R=Math.max(tR.width,tR.height)*.9;
+      let is=null;
+      (function idraw(ts2){
+        if(!is)is=ts2;
+        const ip=Math.min((ts2-is)/500,1);
+        ictx.clearRect(0,0,ic.width,ic.height);
+        const ia=1-ip;
+        ictx.beginPath(); ictx.arc(x2,y2,R*ip,0,Math.PI*2);
+        ictx.strokeStyle=`rgba(255,200,50,${ia*.8})`; ictx.lineWidth=3*(1-ip)+1; ictx.stroke();
+        ictx.beginPath(); ictx.arc(x2,y2,R*ip*.6,0,Math.PI*2);
+        ictx.strokeStyle=`rgba(255,255,255,${ia*.5})`; ictx.lineWidth=1.5; ictx.stroke();
+        if(ip<.2){
+          const fg=ictx.createRadialGradient(x2,y2,0,x2,y2,R*.4);
+          fg.addColorStop(0,`rgba(255,255,255,${(.2-ip)/.2*.9})`); fg.addColorStop(1,'rgba(0,0,0,0)');
+          ictx.fillStyle=fg; ictx.beginPath(); ictx.arc(x2,y2,R*.4,0,Math.PI*2); ictx.fill();
+        }
+        if(ip<1)requestAnimationFrame(idraw); else ic.remove();
+      })(performance.now());
+      if(onImpact) onImpact();
+    }
+  })(performance.now());
+}
+
+// ── LP Damage FX ─────────────────────────────────────────
+function lpDamageFX(amount, barId, valId, newLpPct) {
+  const barEl=document.getElementById(barId);
+  const valEl=document.getElementById(valId);
+  if(!barEl||!valEl) return;
+  const rect=valEl.getBoundingClientRect();
+  const num=document.createElement('div');
+  num.textContent='-'+amount;
+  num.style.cssText=`position:fixed;left:${rect.left}px;top:${rect.top}px;
+    color:#ff4466;font-family:'Orbitron',monospace;font-size:.85rem;font-weight:700;
+    pointer-events:none;z-index:600;text-shadow:0 0 12px rgba(255,50,80,.9);`;
+  document.body.appendChild(num);
+  num.animate([
+    {opacity:1,transform:'translateY(0) scale(1.2)'},
+    {opacity:1,transform:'translateY(-24px) scale(1.4)',offset:.3},
+    {opacity:0,transform:'translateY(-48px) scale(.9)'},
+  ],{duration:900,easing:'ease-out',fill:'forwards'}).finished.then(()=>num.remove());
+  barEl.animate([
+    {transform:'translateX(0)'},{transform:'translateX(-4px)'},
+    {transform:'translateX(4px)'},{transform:'translateX(-3px)'},
+    {transform:'translateX(0)'},
+  ],{duration:300,easing:'ease-out'});
+  const fillEl=barEl.querySelector('.lp-fill');
+  if(fillEl){fillEl.style.transition='width .6s ease-out'; fillEl.style.width=Math.max(0,newLpPct)+'%';}
+}
 
 async function summonToField(wrapEl, card, zoneEl) {
   zoneEl.classList.add('occupied');
   const lbl = zoneEl.querySelector('.zone-label');
   if (lbl) lbl.style.display = 'none';
 
-  // Fade hand card out
   wrapEl.style.transition = 'opacity .2s, transform .2s';
   wrapEl.style.opacity = '0';
   setTimeout(() => wrapEl.remove(), 220);
 
-  // Flash zone border
   zoneEl.classList.add('flash');
   setTimeout(() => zoneEl.classList.remove('flash'), 600);
 
   try {
     let imageUrl = card.url;
-
     if (!imageUrl) {
-      // placeholder canvas for cards without image
-      const c = document.createElement('canvas');
-      c.width = 200; c.height = 290;
-      const ctx = c.getContext('2d');
-      const g = ctx.createLinearGradient(0, 0, 0, 290);
-      g.addColorStop(0, '#1a0a3a'); g.addColorStop(1, '#0a0a1a');
-      ctx.fillStyle = g; ctx.fillRect(0, 0, 200, 290);
-      ctx.font = '80px serif'; ctx.textAlign = 'center';
-      ctx.fillText('🃏', 100, 170);
-      imageUrl = c.toDataURL();
+      const c=document.createElement('canvas'); c.width=200; c.height=290;
+      const ctx=c.getContext('2d');
+      const g=ctx.createLinearGradient(0,0,0,290);
+      g.addColorStop(0,'#1a0a3a'); g.addColorStop(1,'#0a0a1a');
+      ctx.fillStyle=g; ctx.fillRect(0,0,200,290);
+      ctx.font='80px serif'; ctx.textAlign='center'; ctx.fillText('🃏',100,170);
+      imageUrl=c.toDataURL();
     }
 
-    // Convert to dataURL (handles CORS via proxy)
     const dataUrl = await imageToDataURL(imageUrl);
 
-    // ── Show card image immediately — no AI loading ──
     const imgEl = document.createElement('img');
     imgEl.src = dataUrl;
-    imgEl.style.cssText = `
-      position:absolute; inset:0; width:100%; height:100%;
-      object-fit:cover; object-position:top center;
-      border-radius:4px; z-index:1;
-    `;
+    imgEl.style.cssText=`position:absolute;inset:0;width:100%;height:100%;
+      object-fit:cover;object-position:top center;border-radius:4px;z-index:1;`;
     zoneEl.appendChild(imgEl);
 
-    // ── Card drop thud animation ──
     zoneEl.classList.add('card-landing');
     setTimeout(() => zoneEl.classList.remove('card-landing'), 500);
 
-    // ── Normal Summon FX: burst + ring + particles (instant, Canvas) ──
-    normalSummonFX(zoneEl);
+    // ── Pick summon FX based on card type ──
+    const fullType = (card.type || '').toUpperCase();
+    const isSpell  = fullType.includes('SPELL');
+    const isTrap   = fullType.includes('TRAP');
+    const isExtra  = ['FUSION','SYNCHRO','XYZ','LINK','RITUAL']
+                       .some(k => fullType.includes(k));
 
-    // ── Sobel edge glow: começa após o summon FX (1s de delay) ──
+    if (isSpell || isTrap) {
+      spellActivationFX(zoneEl, isSpell);
+    } else if (isExtra) {
+      specialSummonFX(zoneEl, card.type);
+    } else {
+      normalSummonFX(zoneEl);
+    }
+
+    // Sobel edge glow after summon FX
     setTimeout(() => requestAnimationFrame(() => sobelEdgeGlow(zoneEl, dataUrl)), 1000);
 
+    // ── Attack click: click occupied monster zone to attack an opponent zone ──
+    if (!isSpell && !isTrap) {
+      zoneEl.addEventListener('click', () => {
+        if (zoneEl.dataset.attacking) return;
+        const opponentZones = document.querySelectorAll(
+          '.field-side--opponent .zone--monster, .field-side--opponent .zone--spell'
+        );
+        // highlight targets
+        opponentZones.forEach(z => z.classList.add('attack-target'));
+        zoneEl.dataset.attacking = '1';
+        document.getElementById('instruction').textContent =
+          'CLIQUE EM UMA ZONA DO OPONENTE PARA ATACAR';
+
+        const onTarget = e => {
+          const target = e.target.closest(
+            '.field-side--opponent .zone--monster, .field-side--opponent .zone--spell'
+          );
+          if (!target) { cancelAttack(); return; }
+          opponentZones.forEach(z => z.classList.remove('attack-target'));
+          document.removeEventListener('click', onTarget);
+          delete zoneEl.dataset.attacking;
+          attackFX(zoneEl, target, () => {
+            // trigger LP damage on opponent after impact
+            const dmg = 800 + Math.floor(Math.random()*1200);
+            lpDamageFX(dmg, 'opponentLpBar', 'opponentLpVal', 45);
+            document.getElementById('instruction').textContent = `DANO: ${dmg} LP`;
+          });
+        };
+
+        const cancelAttack = () => {
+          opponentZones.forEach(z=>z.classList.remove('attack-target'));
+          document.removeEventListener('click', onTarget);
+          delete zoneEl.dataset.attacking;
+        };
+
+        setTimeout(() => document.addEventListener('click', onTarget), 50);
+      }, { once: false });
+    }
+
     document.getElementById('instruction').textContent =
-      'MOVA O MOUSE SOBRE A CARTA NO CAMPO';
+      isSpell || isTrap ? 'CARTA ATIVADA' : 'CLIQUE NA CARTA NO CAMPO PARA ATACAR';
 
   } catch (err) {
     console.error(err);
@@ -585,14 +873,24 @@ function validZones(type) {
 // ── Init ──────────────────────────────────────────────────
 (async () => {
   try {
-    const res  = await fetch('https://db.ygoprodeck.com/api/v7/cardinfo.php?num=9&offset=40');
-    const data = await res.json();
-    buildHand(data.data);
+    // Busca uma carta de cada tipo para testar todos os FX
+    const urls = [
+      'https://db.ygoprodeck.com/api/v7/cardinfo.php?type=Fusion+Monster&num=1&offset=0',
+      'https://db.ygoprodeck.com/api/v7/cardinfo.php?type=Synchro+Monster&num=1&offset=0',
+      'https://db.ygoprodeck.com/api/v7/cardinfo.php?type=XYZ+Monster&num=1&offset=0',
+      'https://db.ygoprodeck.com/api/v7/cardinfo.php?type=Link+Monster&num=1&offset=0',
+      'https://db.ygoprodeck.com/api/v7/cardinfo.php?type=Effect+Monster&num=1&offset=0',
+      'https://db.ygoprodeck.com/api/v7/cardinfo.php?type=Spell+Card&num=1&offset=0',
+      'https://db.ygoprodeck.com/api/v7/cardinfo.php?type=Trap+Card&num=1&offset=0',
+    ];
+    const results = await Promise.all(urls.map(u => fetch(u).then(r => r.json())));
+    const cards = results.map(r => r.data[0]);
+    buildHand(cards);
   } catch (e) {
     buildHand(Array.from({ length: 7 }, (_, i) => ({
       id:   i + 1,
       name: `Card ${i + 1}`,
-      type: ['Monster', 'Spell', 'Trap'][i % 3],
+      type: ['Fusion Monster','Synchro Monster','XYZ Monster','Link Monster','Effect Monster','Spell Card','Trap Card'][i],
       card_images: [{ image_url: '' }],
     })));
   }

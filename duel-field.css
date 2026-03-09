@@ -498,6 +498,18 @@ body {
   overflow: visible;
 }
 
+/* attack target highlight */
+.zone.attack-target {
+  border-color: var(--c-red) !important;
+  background: rgba(255,50,80,.06);
+  cursor: crosshair !important;
+  animation: pulse-attack .7s ease-in-out infinite;
+}
+@keyframes pulse-attack {
+  0%,100% { box-shadow: 0 0 0 0 rgba(255,50,80,.3); }
+  50%      { box-shadow: 0 0 14px 4px rgba(255,50,80,.2); }
+}
+
 /* ── Instruction chip ── */
 .instruction {
   position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);

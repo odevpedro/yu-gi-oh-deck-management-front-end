@@ -148,71 +148,137 @@ function mountParallax(zoneEl, colorDataUrl, depthCanvas) {
   })();
 }
 
+// ── Sobel Edge Glow ───────────────────────────────────────
+// Detects edges of the card art and animates a glow on them
+async function sobelEdgeGlow(zoneEl, dataUrl) {
+  const W = zoneEl.clientWidth;
+  const H = zoneEl.clientHeight;
+
+  // ── offscreen: draw source image ──
+  const src = document.createElement('canvas');
+  src.width = W; src.height = H;
+  const sCtx = src.getContext('2d');
+  await new Promise((res, rej) => {
+    const im = new Image();
+    im.onload = () => { sCtx.drawImage(im, 0, 0, W, H); res(); };
+    im.onerror = rej;
+    im.src = dataUrl;
+  });
+
+  const { data: px } = sCtx.getImageData(0, 0, W, H);
+
+  // ── Sobel kernel ──
+  const edge = new Float32Array(W * H);
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const luma = (r, g, b) => 0.299*r + 0.587*g + 0.114*b;
+      const p = (dx, dy) => {
+        const i = ((y + dy) * W + (x + dx)) * 4;
+        return luma(px[i], px[i+1], px[i+2]);
+      };
+      const gx = -p(-1,-1) - 2*p(-1,0) - p(-1,1) + p(1,-1) + 2*p(1,0) + p(1,1);
+      const gy = -p(-1,-1) - 2*p(0,-1) - p(1,-1) + p(-1,1) + 2*p(0,1) + p(1,1);
+      edge[y * W + x] = Math.min(255, Math.sqrt(gx*gx + gy*gy));
+    }
+  }
+
+  // ── glow canvas overlay ──
+  const glowCanvas = document.createElement('canvas');
+  glowCanvas.width = W; glowCanvas.height = H;
+  glowCanvas.style.cssText = `
+    position:absolute; inset:0; z-index:5; pointer-events:none;
+    mix-blend-mode:screen; border-radius:5px;
+  `;
+
+  const gCtx = glowCanvas.getContext('2d');
+  const out  = gCtx.createImageData(W, H);
+
+  // neon cyan-to-gold palette — matches field aesthetic
+  for (let i = 0; i < W * H; i++) {
+    const v = edge[i];
+    if (v < 18) continue; // ignore noise
+    const t = v / 255;
+    // cyan (0,220,255) → gold (255,200,50)
+    out.data[i*4+0] = Math.round(t * (v > 128 ? 255 : 0));
+    out.data[i*4+1] = Math.round(t * 210);
+    out.data[i*4+2] = Math.round(t * (v > 128 ? 50 : 255));
+    out.data[i*4+3] = Math.round(t * 255);
+  }
+  gCtx.putImageData(out, 0, 0);
+
+  // soft blur so edges glow instead of being sharp lines
+  gCtx.filter = 'blur(2px)';
+  gCtx.drawImage(glowCanvas, 0, 0);
+  gCtx.filter = 'none';
+
+  zoneEl.appendChild(glowCanvas);
+
+  // ── animate: fade in → hold → fade out ──
+  glowCanvas.animate([
+    { opacity: 0,   filter: 'blur(6px)' },
+    { opacity: 1,   filter: 'blur(2px)', offset: 0.15 },
+    { opacity: 0.85,filter: 'blur(2px)', offset: 0.6  },
+    { opacity: 0,   filter: 'blur(8px)' },
+  ], { duration: 2400, easing: 'ease-in-out', fill: 'forwards' })
+    .finished.then(() => glowCanvas.remove());
+}
+
 // ── Summon to field ───────────────────────────────────────
 async function summonToField(wrapEl, card, zoneEl) {
   zoneEl.classList.add('occupied');
   const lbl = zoneEl.querySelector('.zone-label');
   if (lbl) lbl.style.display = 'none';
 
-  // Fade out hand card
-  wrapEl.style.transition = 'opacity .25s, transform .25s';
+  // Fade hand card out
+  wrapEl.style.transition = 'opacity .2s, transform .2s';
   wrapEl.style.opacity = '0';
-  setTimeout(() => wrapEl.remove(), 280);
+  setTimeout(() => wrapEl.remove(), 220);
 
-  // Flash zone
+  // Flash zone border
   zoneEl.classList.add('flash');
   setTimeout(() => zoneEl.classList.remove('flash'), 600);
-
-  const overlay = document.getElementById('loadingOverlay');
-  overlay.classList.remove('hidden');
-  setLoad(5, 'Gerando depth map...', 'Preparando parallax in-duel');
 
   try {
     let imageUrl = card.url;
 
-    // Fallback: generate a canvas placeholder if no real image
     if (!imageUrl) {
+      // placeholder canvas for cards without image
       const c = document.createElement('canvas');
       c.width = 200; c.height = 290;
       const ctx = c.getContext('2d');
       const g = ctx.createLinearGradient(0, 0, 0, 290);
-      g.addColorStop(0, '#1a0a3a');
-      g.addColorStop(1, '#0a0a1a');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, 200, 290);
-      ctx.font = '80px serif';
-      ctx.textAlign = 'center';
+      g.addColorStop(0, '#1a0a3a'); g.addColorStop(1, '#0a0a1a');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, 200, 290);
+      ctx.font = '80px serif'; ctx.textAlign = 'center';
       ctx.fillText('🃏', 100, 170);
       imageUrl = c.toDataURL();
     }
 
-    if (!depthPipe) await loadDepthModel();
-    setLoad(75, 'Gerando depth map...', 'Executando Depth Anything V2');
+    // Convert to dataURL (handles CORS via proxy)
+    const dataUrl = await imageToDataURL(imageUrl);
 
-    const dc = await getDepthMap(card.id, imageUrl);
-    setLoad(95, 'Montando shader...', 'Compilando Three.js');
+    // ── Show card image immediately — no AI loading ──
+    const imgEl = document.createElement('img');
+    imgEl.src = dataUrl;
+    imgEl.style.cssText = `
+      position:absolute; inset:0; width:100%; height:100%;
+      object-fit:cover; object-position:top center;
+      border-radius:4px; z-index:1;
+    `;
+    zoneEl.appendChild(imgEl);
 
-    // The colorDataUrl is either already a data URL or gets proxied in getDepthMap
-    const colorDataUrl = imageUrl.startsWith('data:')
-      ? imageUrl
-      : await imageToDataURL(imageUrl);
-
-    mountParallax(zoneEl, colorDataUrl, dc);
-
-    // card-drop thud animation
+    // ── Card drop thud animation ──
     zoneEl.classList.add('card-landing');
     setTimeout(() => zoneEl.classList.remove('card-landing'), 500);
 
-    setLoad(100, 'Carta invocada!', 'Shader ativo — mova o mouse');
-    setTimeout(() => {
-      overlay.classList.add('hidden');
-      document.getElementById('instruction').textContent = 'MOVA O MOUSE SOBRE A CARTA NO CAMPO';
-    }, 700);
+    // ── Sobel edge glow (runs after image painted) ──
+    requestAnimationFrame(() => sobelEdgeGlow(zoneEl, dataUrl));
+
+    document.getElementById('instruction').textContent =
+      'MOVA O MOUSE SOBRE A CARTA NO CAMPO';
 
   } catch (err) {
     console.error(err);
-    document.getElementById('loadLog').textContent = '⚠️ ' + err.message;
-    setTimeout(() => overlay.classList.add('hidden'), 3000);
   }
 }
 

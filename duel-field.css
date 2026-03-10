@@ -261,7 +261,8 @@ body {
 .hand {
   position: fixed;
   bottom: 0;
-  left: 50%;
+  /* compensa o painel de 320px à esquerda */
+  left: calc(50% + 160px);
   transform: translateX(-50%);
   width: 700px;
   height: 300px;

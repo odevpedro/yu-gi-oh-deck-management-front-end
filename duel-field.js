@@ -665,6 +665,26 @@ async function summonToField(wrapEl, card, zoneEl) {
     // Sobel edge glow after summon FX
     setTimeout(() => requestAnimationFrame(() => sobelEdgeGlow(zoneEl, dataUrl)), 1000);
 
+    // ── Registra carta no painel contextual ──
+    if (window.__panelRegisterCard) {
+      window.__panelRegisterCard(zoneEl, {
+        id:         card.id,
+        name:       card.name      ?? 'Desconhecida',
+        type:       card.type      ?? '',
+        attribute:  card.attribute ?? '',
+        level:      card.level,
+        rank:       card.rank,
+        linkval:    card.linkval,
+        atk:        card.atk,
+        def:        card.def,
+        desc:       card.desc      ?? '',
+        imageUrl:   dataUrl,
+        controller: 'Você',
+        position:   'Attack Position',
+        faceDown:   false,
+      });
+    }
+
     // ── Attack click: click occupied monster zone to attack an opponent zone ──
     if (!isSpell && !isTrap) {
       zoneEl.addEventListener('click', () => {
@@ -791,7 +811,18 @@ function buildHand(cards) {
     });
 
     // ── Drag & Drop ──
-    setupDrag(wrap, { id: c.id ?? i, url: rawImg, type: t }, a, oy, ox, fan);
+    setupDrag(wrap, { id: c.id ?? i, url: rawImg, type: t, name: c.name, attribute: c.attribute, level: c.level, rank: c.rank, linkval: c.linkval, atk: c.atk, def: c.def, desc: c.desc }, a, oy, ox, fan);
+
+    // ── Registra no painel contextual ──
+    if (window.__panelRegisterHand) {
+      window.__panelRegisterHand(wrap, {
+        id: c.id ?? i, name: c.name ?? `Carta ${i+1}`,
+        type: c.type ?? '', attribute: c.attribute ?? '',
+        level: c.level, rank: c.rank, linkval: c.linkval,
+        atk: c.atk, def: c.def, desc: c.desc ?? '',
+        imageUrl: img,
+      });
+    }
 
     hand.appendChild(wrap);
   });

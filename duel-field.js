@@ -733,8 +733,15 @@ async function summonToField(wrapEl, card, zoneEl) {
 }
 
 // ══════════════════════════════════════════════════════════
-// POC3 HAND — exact implementation
+// HAND STATE
 // ══════════════════════════════════════════════════════════
+const HandState = {
+  hovered:  null,  // index
+  selected: null,  // index
+  wraps:    [],    // DOM refs
+  cards:    [],    // card data
+};
+
 const ANGLES  = [-18, -12, -6,  0,  6,  12, 18];
 const OFFSETS = [ 38,  18,  6,  0,  6,  18, 38];
 const SPREAD  = 34;
@@ -746,22 +753,129 @@ function cardType(t = '') {
   return 'MONSTER';
 }
 
+// condição resumida para tooltip
+function cardCondition(card) {
+  const t = (card.type || '').toUpperCase();
+  if (t.includes('SPELL'))         return 'Ativar: coloque na Spell Zone';
+  if (t.includes('TRAP'))          return 'Set face-down, ative no turno seguinte';
+  if (t.includes('FUSION'))        return 'Invocação de Fusão necessária';
+  if (t.includes('SYNCHRO'))       return 'Sincronize: Tuner + não-Tuner';
+  if (t.includes('XYZ'))           return 'Sobreponha monstros do mesmo nível';
+  if (t.includes('LINK'))          return 'Invocação de Link necessária';
+  if (t.includes('RITUAL'))        return 'Ritual Spell + tributo necessário';
+  if (card.atk !== undefined) {
+    const lvl = card.level ? `Nível ${card.level} · ` : '';
+    return `${lvl}Normal/Tribute Summon · ATK ${card.atk ?? '?'}`;
+  }
+  return '';
+}
+
+// aplica estados visuais a todas as cartas
+function applyHandStates() {
+  const { hovered, selected, wraps } = HandState;
+  const focus = hovered ?? selected;
+
+  wraps.forEach((w, i) => {
+    const a  = ANGLES[i];
+    const oy = OFFSETS[i];
+    const ox = (i - 3) * SPREAD;
+
+    w.classList.remove('card-wrap--hovered', 'card-wrap--selected', 'card-wrap--dimmed');
+
+    if (focus === null) {
+      // estado normal — leque limpo
+      w.style.transform = `rotate(${a}deg) translateY(${oy}px)`;
+      w.style.zIndex = '';
+      return;
+    }
+
+    if (i === focus) {
+      w.classList.add(hovered !== null ? 'card-wrap--hovered' : 'card-wrap--selected');
+      // levanta mais e centraliza parcialmente
+      const liftY  = oy - 72;
+      // compressão horizontal: puxa a carta em foco para o centro
+      const pullX  = ox * 0.35;
+      w.style.transform = `translateX(${pullX - ox}px) rotate(${a * 0.4}deg) translateY(${liftY}px) scale(1.18)`;
+      w.style.zIndex = '200';
+    } else {
+      // cartas vizinhas se afastam da carta em foco
+      const dist  = i - focus;
+      const pushX = dist * 10;
+      w.classList.add('card-wrap--dimmed');
+      w.style.transform = `translateX(${pushX}px) rotate(${a}deg) translateY(${oy}px)`;
+      w.style.zIndex = '';
+    }
+  });
+}
+
+// tooltip flutuante acima da carta
+function showTooltip(wrapEl, card) {
+  removeTooltip();
+  const cond = cardCondition(card);
+  const t = cardType(card.type || '');
+  const tip = document.createElement('div');
+  tip.className = `hand-tooltip hand-tooltip--${t.toLowerCase()}`;
+  tip.id = 'handTooltip';
+  tip.innerHTML = `
+    <div class="ht-name">${card.name ?? '—'}</div>
+    <div class="ht-type">${card.type ?? ''}</div>
+    ${cond ? `<div class="ht-cond">${cond}</div>` : ''}
+  `;
+  document.body.appendChild(tip);
+
+  // posiciona acima da carta
+  const rect = wrapEl.getBoundingClientRect();
+  tip.style.left = (rect.left + rect.width / 2) + 'px';
+  tip.style.top  = (rect.top - 12) + 'px';
+}
+
+function removeTooltip() {
+  document.getElementById('handTooltip')?.remove();
+}
+
+// destaca zonas válidas (hover ou seleção)
+function highlightValidZones(type, active) {
+  const sel = type === 'SPELL' || type === 'TRAP'
+    ? '#playerSpellZones .zone--spell'
+    : '#playerZones .zone--monster';
+  document.querySelectorAll('.zone').forEach(z => {
+    z.classList.remove('drop-target', 'zone--invalid');
+  });
+  if (active) {
+    document.querySelectorAll(sel).forEach(z => {
+      if (!z.classList.contains('occupied')) z.classList.add('drop-target');
+    });
+    // zonas inválidas ficam discretamente apagadas
+    const invSel = type === 'SPELL' || type === 'TRAP'
+      ? '#playerZones .zone--monster'
+      : '#playerSpellZones .zone--spell';
+    document.querySelectorAll(invSel).forEach(z => {
+      if (!z.classList.contains('occupied')) z.classList.add('zone--invalid');
+    });
+  }
+}
+
 function buildHand(cards) {
   const hand = document.getElementById('hand');
   hand.innerHTML = '';
+  HandState.wraps  = [];
+  HandState.cards  = [];
+  HandState.hovered = null;
+  HandState.selected = null;
 
   cards.slice(0, 7).forEach((c, i) => {
-    const a   = ANGLES[i];
-    const oy  = OFFSETS[i];
-    const ox  = (i - 3) * SPREAD;
-    const t   = cardType(c.type || 'MONSTER');
+    const a      = ANGLES[i];
+    const oy     = OFFSETS[i];
+    const ox     = (i - 3) * SPREAD;
+    const t      = cardType(c.type || 'MONSTER');
     const rawImg = c.card_images?.[0]?.image_url ?? c.url ?? '';
-    const img = rawImg ? `https://corsproxy.io/?url=${encodeURIComponent(rawImg)}` : '';
-    const fan = `rotate(${a}deg) translateY(${oy}px)`;
+    const img    = rawImg ? `https://corsproxy.io/?url=${encodeURIComponent(rawImg)}` : '';
+    const fan    = `rotate(${a}deg) translateY(${oy}px)`;
 
     const wrap = document.createElement('div');
     wrap.className = 'card-wrap';
     wrap.dataset.t = t;
+    wrap.dataset.i = i;
     wrap.style.cssText = `--i:${i}; --fan:${fan}; left:calc(50% - 74px + ${ox}px);`;
 
     wrap.innerHTML = `
@@ -775,7 +889,7 @@ function buildHand(cards) {
     const card = wrap.querySelector('.card');
     let raf;
 
-    // ── Holo / tilt effect (exact poc3) ──
+    // ── Holo / tilt ──
     wrap.addEventListener('pointermove', e => {
       if (wrap.classList.contains('is-dragging')) return;
       cancelAnimationFrame(raf);
@@ -793,11 +907,16 @@ function buildHand(cards) {
       });
     });
 
+    // ── Hover enter ──
     wrap.addEventListener('pointerenter', () => {
       if (wrap.classList.contains('is-dragging')) return;
-      wrap.style.transform = `rotate(${a}deg) translateY(${oy - 32}px) scale(1.09)`;
+      HandState.hovered = i;
+      applyHandStates();
+      showTooltip(wrap, HandState.cards[i]);
+      highlightValidZones(t, true);
     });
 
+    // ── Hover leave ──
     wrap.addEventListener('pointerleave', () => {
       cancelAnimationFrame(raf);
       wrap.style.setProperty('--rx', '0deg');
@@ -805,15 +924,38 @@ function buildHand(cards) {
       wrap.style.setProperty('--mx', '50%');
       wrap.style.setProperty('--my', '50%');
       wrap.style.setProperty('--o',  '0');
-      if (!wrap.classList.contains('is-dragging')) {
-        wrap.style.transform = fan;
+      if (wrap.classList.contains('is-dragging')) return;
+      HandState.hovered = null;
+      applyHandStates();
+      removeTooltip();
+      // mantém highlight se houver seleção ativa
+      if (HandState.selected === null) highlightValidZones(t, false);
+    });
+
+    // ── Click = selecionar ──
+    wrap.addEventListener('click', e => {
+      if (wrap.classList.contains('is-dragging')) return;
+      e.stopPropagation();
+      if (HandState.selected === i) {
+        // deseleciona
+        HandState.selected = null;
+        highlightValidZones(t, false);
+      } else {
+        HandState.selected = i;
+        highlightValidZones(t, true);
       }
+      applyHandStates();
     });
 
     // ── Drag & Drop ──
-    setupDrag(wrap, { id: c.id ?? i, url: rawImg, type: t, name: c.name, attribute: c.attribute, level: c.level, rank: c.rank, linkval: c.linkval, atk: c.atk, def: c.def, desc: c.desc }, a, oy, ox, fan);
+    setupDrag(wrap, {
+      id: c.id ?? i, url: rawImg, type: t,
+      name: c.name, attribute: c.attribute,
+      level: c.level, rank: c.rank, linkval: c.linkval,
+      atk: c.atk, def: c.def, desc: c.desc,
+    }, a, oy, ox, fan);
 
-    // ── Registra no painel contextual ──
+    // ── Painel contextual ──
     if (window.__panelRegisterHand) {
       window.__panelRegisterHand(wrap, {
         id: c.id ?? i, name: c.name ?? `Carta ${i+1}`,
@@ -824,7 +966,19 @@ function buildHand(cards) {
       });
     }
 
+    HandState.wraps.push(wrap);
+    HandState.cards.push({ ...c, type: c.type ?? t });
     hand.appendChild(wrap);
+  });
+
+  // clique fora da mão deseleciona
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.card-wrap') && HandState.selected !== null) {
+      const prevType = cardType(HandState.cards[HandState.selected]?.type || '');
+      HandState.selected = null;
+      applyHandStates();
+      highlightValidZones(prevType, false);
+    }
   });
 }
 

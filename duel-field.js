@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js';
+import { canSummon, canAttack as phaseCanAttack } from './turn-system.js';
 
 env.allowLocalModels = false;
 const THREE = window.THREE;
@@ -689,6 +690,10 @@ async function summonToField(wrapEl, card, zoneEl) {
     if (!isSpell && !isTrap) {
       zoneEl.addEventListener('click', () => {
         if (zoneEl.dataset.attacking) return;
+        if (!phaseCanAttack()) {
+          showPhaseBlock(zoneEl, 'Só na Battle Phase');
+          return;
+        }
         const opponentZones = document.querySelectorAll(
           '.field-side--opponent .zone--monster, .field-side--opponent .zone--spell'
         );
@@ -986,6 +991,11 @@ function buildHand(cards) {
 function setupDrag(wrapEl, card, angle, oy, ox, fan) {
   wrapEl.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
+    // só pode jogar na Main Phase
+    if (!canSummon()) {
+      showPhaseBlock(wrapEl, 'Só na Main Phase');
+      return;
+    }
     e.preventDefault();
 
     const rect  = wrapEl.getBoundingClientRect();
@@ -1054,6 +1064,52 @@ function validZones(type) {
     return '#playerSpellZones .zone--spell';
   return '#playerZones .zone--monster';
 }
+
+// ── Feedback de ação bloqueada por fase ──────────────────
+function showPhaseBlock(anchorEl, msg) {
+  const existing = document.getElementById('phaseBlock');
+  if (existing) existing.remove();
+
+  const el = document.createElement('div');
+  el.id = 'phaseBlock';
+  el.textContent = msg;
+  el.style.cssText = `
+    position:fixed; pointer-events:none; z-index:9999;
+    font-family:'Orbitron',monospace; font-size:.55rem;
+    letter-spacing:.1em; color:rgba(255,80,80,.9);
+    background:rgba(20,0,0,.85); border:1px solid rgba(255,50,50,.4);
+    border-radius:4px; padding:5px 10px;
+    text-shadow:0 0 8px rgba(255,50,50,.6);
+  `;
+  document.body.appendChild(el);
+
+  const r = anchorEl.getBoundingClientRect();
+  el.style.left = (r.left + r.width/2 - el.offsetWidth/2) + 'px';
+  el.style.top  = (r.top - 36) + 'px';
+
+  el.animate([
+    { opacity: 0, transform: 'translateY(4px)' },
+    { opacity: 1, transform: 'translateY(0)',   offset: .15 },
+    { opacity: 1, transform: 'translateY(0)',   offset: .7 },
+    { opacity: 0, transform: 'translateY(-6px)' },
+  ], { duration: 1200, fill: 'forwards' }).finished.then(() => el.remove());
+}
+
+// ── Hook para adicionar carta à mão via draw ──────────────
+window.__addCardToHand = function(card) {
+  const currentCount = HandState.cards.length;
+  if (currentCount >= 10) return; // máximo de cartas na mão
+
+  // reconstrói mão com a nova carta adicionada
+  const updatedCards = [
+    ...HandState.cards.map((c, i) => ({
+      ...c,
+      card_images: c.card_images ?? [{ image_url: HandState.wraps[i]?.querySelector('img')?.src ?? '' }],
+    })),
+    card,
+  ];
+  buildHand(updatedCards);
+};
 
 // ── Init ──────────────────────────────────────────────────
 (async () => {

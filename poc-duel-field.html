@@ -40,9 +40,8 @@
       <div class="lp-val" id="opponentLpVal">6000</div>
     </div>
 
-    <div class="turn-block">
-      <div class="turn-num">TURNO 3</div>
-      <div class="turn-phase">MAIN PHASE 1</div>
+    <div class="turn-block" id="turnBlock">
+      <!-- preenchido por renderPhaseHUD() -->
     </div>
 
     <div class="player-info">
@@ -118,10 +117,7 @@
           <div class="zone zone--spell" data-zone="s3"><div class="zone-label">SPELL/TRAP</div></div>
           <div class="zone zone--spell" data-zone="s4"><div class="zone-label">PENDULUM</div></div>
         </div>
-        <div class="zone zone--deck"><div class="zone-label">DECK</div></div>
-      </div>
-
-      <!-- Hand -->
+        <div class="zone zone--deck" id="playerDeckZone"></div>
       <div class="hand" id="hand"></div>
 
     </section>
@@ -136,9 +132,17 @@
   <script type="module" src="duel-field.js"></script>
   <script type="module">
     import { initContextPanel, registerHandCard, registerCardInZone } from './context-panel.js';
+    import { initTurnSystem, onPhaseChange }                          from './turn-system.js';
+    import { initDeck, onDraw }                                       from './deck-system.js';
 
-    // módulos já carregam após o DOM — sem necessidade de DOMContentLoaded
     initContextPanel();
+    initTurnSystem();
+    await initDeck();
+
+    // quando comprar carta, adiciona à mão
+    onDraw(card => {
+      if (window.__addCardToHand) window.__addCardToHand(card);
+    });
 
     window.__panelRegisterCard = registerCardInZone;
     window.__panelRegisterHand = registerHandCard;

@@ -3,10 +3,12 @@
 // ═══════════════════════════════════════════════════════════
 import { useRef, useEffect, useCallback } from 'react'
 import { useDuel }         from '../contexts/DuelContext'
+import { engine }           from '../engine'
+import { logger }           from '../utils/logger'
 import { isExtraType, imageToDataURL, proxiedUrl } from '../utils/cardHelpers'
 import {
   normalSummonFX, specialSummonFX, spellActivationFX,
-  attackFX, lpDamageFX, sobelEdgeGlow,
+  sobelEdgeGlow, lpDamageFX as lpDamageFXUtil,
 } from '../utils/fx'
 
 const TYPE_CLASS = {
@@ -39,7 +41,7 @@ export default function Zone({
     dragState, endDrag, removeCardFromHand,
     attackingZone, setAttackingZone,
     dealDamage, setInstruction,
-    sendToGraveyard,
+    sendToGraveyard, setOccupiedZones,
     updatePanel,
     selectedCard, selectCard,
     activeAction, clearSelection,
@@ -73,7 +75,7 @@ export default function Zone({
       const isExtra  = isExtraType(cardData.card?.type)
 
       if (isSpell || isTrap)  spellActivationFX(el, isSpell)
-      else if (isExtra)       specialSummonFX(el, cardData.card?.type)
+      else if (isExtra)       specialSummonFX(el, cardData.card?.type ?? '')
       else                    normalSummonFX(el)
 
       if (cardData.dataUrl) setTimeout(() => sobelEdgeGlow(el, cardData.dataUrl), 900)
@@ -192,58 +194,19 @@ export default function Zone({
 
   // ── Zona oponente: recebe ataque ──────────────────────
   const handleOpponentClick = useCallback((e) => {
-    if (!attackingZone) return
+    logger.attack('Zone clicked', { attackingZone, targetZone: zoneKey, side })
+    if (!attackingZone) { logger.attack('Aborted — no attackingZone'); return }
     e.stopPropagation()
 
-    const attackerEl = document.querySelector(`[data-zone-key="${attackingZone}"]`)
-    const targetEl   = zoneRef.current
-    if (!attackerEl || !targetEl) return
+    const gameState = { occupiedZones }
+    const mutations = {
+      setOccupiedZones,
+      setAttackingZone, dealDamage, sendToGraveyard, setInstruction,
+      lpDamageFX: lpDamageFXUtil,
+    }
 
-    const attackerSlot = occupiedZones[attackingZone]
-    const targetSlot   = cardData   // this zone's card (may be null = direct attack)
-
-    setAttackingZone(null)
-
-    attackFX(attackerEl, targetEl, () => {
-      // ── Direct attack (empty zone) ──────────────────────
-      if (!targetSlot) {
-        const atkVal = attackerSlot?.card?.atk ?? 0
-        const barEl  = document.getElementById('opponentLpBar')
-        const valEl  = document.getElementById('opponentLpVal')
-        dealDamage(atkVal, 'opponent')
-        lpDamageFX(atkVal, barEl, valEl, 45)
-        setInstruction(`ATAQUE DIRETO — ${atkVal} DE DANO!`)
-        return
-      }
-
-      // ── Monster vs Monster ──────────────────────────────
-      const atkA  = attackerSlot?.card?.atk ?? 0
-      const defB  = targetSlot.position === 'defense'
-        ? (targetSlot.card?.def ?? 0)
-        : (targetSlot.card?.atk ?? 0)
-      const diff  = atkA - defB
-
-      if (diff > 0) {
-        // Attacker wins — destroy target
-        sendToGraveyard(zoneKey, 'opponent')
-        // player LP safe, opponent loses monster
-        setInstruction(`DESTRUÍDO! +${diff} ATK`)
-      } else if (diff < 0) {
-        // Defender wins — attacker takes damage
-        const dmg   = Math.abs(diff)
-        const barEl = document.getElementById('playerLpBar')
-        const valEl = document.getElementById('playerLpVal')
-        dealDamage(dmg, 'player')
-        lpDamageFX(dmg, barEl, valEl, 45)
-        setInstruction(`BLOQUEADO — ${dmg} DE DANO RECEBIDO`)
-      } else {
-        // Tie — both destroyed
-        sendToGraveyard(zoneKey, 'opponent')
-        sendToGraveyard(attackingZone, 'player')
-        setInstruction('EMPATE — AMBOS DESTRUÍDOS')
-      }
-    })
-  }, [attackingZone, occupiedZones, cardData, zoneKey, setAttackingZone, dealDamage, sendToGraveyard, setInstruction])
+    engine.handleAttackTarget(attackingZone, zoneKey || null, gameState, mutations)
+  }, [attackingZone, occupiedZones, zoneKey, setAttackingZone, dealDamage, sendToGraveyard, setInstruction])
 
   // ── Classes ───────────────────────────────────────────
   const classes = [

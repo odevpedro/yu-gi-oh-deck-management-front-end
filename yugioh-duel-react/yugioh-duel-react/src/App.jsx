@@ -6,6 +6,7 @@ import DuelField    from './components/DuelField'
 import DeckViewer   from './components/DeckViewer'
 import PhaseOverlay from './components/PhaseOverlay'
 import CardContextMenu from './components/CardContextMenu'
+import DebugPanel     from './components/DebugPanel'
 
 function DuelApp() {
   const { initDeck, setHandCards, clearSelection, selectedCard } = useDuel()
@@ -33,7 +34,8 @@ function DuelApp() {
 
   const onBgClick = useCallback((e) => {
     if (!e.target.closest('.card-wrap') && !e.target.closest('[data-zone-key]')
-        && !e.target.closest('.action-bar') && selectedCard) {
+        && !e.target.closest('.action-bar') && !e.target.closest('.ccm')
+        && selectedCard) {
       clearSelection()
     }
   }, [selectedCard, clearSelection])
@@ -44,6 +46,7 @@ function DuelApp() {
       onClick={onBgClick}
     >
       <HUD />
+      <DebugPanel />
       <div className="board-layout">
         <ContextPanel />
         <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', position:'relative', minWidth:0, height:'100%' }}>

@@ -141,6 +141,20 @@ export function DuelProvider({ children }) {
 
   // ── Field zones ───────────────────────────────────────
   const [occupiedZones, setOccupiedZones] = useState({})
+  const [playerGY,   setPlayerGY]   = useState([])
+  const [opponentGY, setOpponentGY] = useState([])
+
+  const sendToGraveyard = useCallback((zoneKey, owner = 'player') => {
+    setOccupiedZones(prev => {
+      const entry = prev[zoneKey]
+      if (!entry) return prev
+      if (owner === 'player') setPlayerGY(gy => [...gy, entry.card])
+      else                    setOpponentGY(gy => [...gy, entry.card])
+      const next = { ...prev }
+      delete next[zoneKey]
+      return next
+    })
+  }, [])
   // slotData = { card, dataUrl, position?, faceDown?, summonedThisTurn? }
   const placeCardInZone = useCallback((zoneKey, slotData) => {
     setOccupiedZones(prev => ({ ...prev, [zoneKey]: slotData }))
@@ -343,7 +357,8 @@ export function DuelProvider({ children }) {
       deckCards, deckRemaining, initDeck, drawFromDeck,
       deckViewerOpen, setDeckViewerOpen,
       handCards, addCardToHand, removeCardFromHand, setHandCards,
-      occupiedZones, placeCardInZone,
+      occupiedZones, setOccupiedZones, placeCardInZone,
+      playerGY, opponentGY, sendToGraveyard,
       dragState, startDrag, endDrag,
       attackingZone, startAttack, cancelAttack, setAttackingZone,
       selectedCard, selectCard, clearSelection,

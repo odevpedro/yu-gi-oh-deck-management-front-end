@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useDuel }        from '../contexts/DuelContext'
-import { resolveActions } from '../utils/actionResolver'
+import { engine } from '../engine'
 import { cardType }       from '../utils/cardHelpers'
 
 const TYPE_COLOR = {
@@ -28,7 +28,7 @@ export default function CardContextMenu() {
   const {
     selectedCard, clearSelection,
     phase, occupiedZones, flags,
-    executeAction,
+    executeAction, attackingZone,
   } = useDuel()
 
   const menuRef  = useRef(null)
@@ -36,7 +36,7 @@ export default function CardContextMenu() {
   const [tooltip, setTooltip] = useState(null)
 
   const actions = selectedCard
-    ? resolveActions(selectedCard, phase, flags, occupiedZones)
+    ? engine.getAvailableActions({ selectedCard, phase, flags, occupiedZones })
     : []
 
   const anchor = selectedCard?.menuAnchor // { x, y, w, h }
@@ -68,14 +68,16 @@ export default function CardContextMenu() {
   useEffect(() => {
     if (!selectedCard) return
     const handler = (e) => {
+      // Não fechar durante ataque — o clique na zona do oponente
+      // precisa processar o ataque antes do menu desaparecer
+      if (attackingZone) return
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         clearSelection()
       }
     }
-    // Delay slightly so the opening click doesn't immediately close
     const tid = setTimeout(() => document.addEventListener('mousedown', handler), 120)
     return () => { clearTimeout(tid); document.removeEventListener('mousedown', handler) }
-  }, [selectedCard, clearSelection])
+  }, [selectedCard, attackingZone, clearSelection])
 
   const handleAction = useCallback((action) => {
     if (!action.available) return

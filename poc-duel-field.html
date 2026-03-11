@@ -6,6 +6,7 @@
   <title>Yu-Gi-Oh! Duel Field POC</title>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Exo+2:wght@300;400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="duel-field.css">
+  <link rel="stylesheet" href="context-panel.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
@@ -33,15 +34,14 @@
         <div class="player-name">KAIBA</div>
         <div class="lp-wrap">
           <div class="lp-label">LIFE POINTS</div>
-          <div class="lp-bar"><div class="lp-fill red"></div></div>
+          <div class="lp-bar" id="opponentLpBar"><div class="lp-fill red"></div></div>
         </div>
       </div>
-      <div class="lp-val">6000</div>
+      <div class="lp-val" id="opponentLpVal">6000</div>
     </div>
 
-    <div class="turn-block">
-      <div class="turn-num">TURNO 3</div>
-      <div class="turn-phase">MAIN PHASE 1</div>
+    <div class="turn-block" id="turnBlock">
+      <!-- preenchido por renderPhaseHUD() -->
     </div>
 
     <div class="player-info">
@@ -57,8 +57,15 @@
     </div>
   </header>
 
-  <!-- ── Duel Field ── -->
-  <main class="duel-field">
+  <!-- ── Board layout ── -->
+  <div class="board-layout">
+
+  <!-- ── Context Panel ── -->
+  <aside id="contextPanel" class="context-panel context-panel--idle"></aside>
+
+  <!-- ── Duel Field (flex: 1) ── -->
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;min-width:0;height:100%">
+    <main class="duel-field" style="flex:1;display:flex;flex-direction:column;overflow:auto">
 
     <!-- Opponent side (CSS rotates 180 deg) -->
     <section class="field-side field-side--opponent">
@@ -110,17 +117,35 @@
           <div class="zone zone--spell" data-zone="s3"><div class="zone-label">SPELL/TRAP</div></div>
           <div class="zone zone--spell" data-zone="s4"><div class="zone-label">PENDULUM</div></div>
         </div>
-        <div class="zone zone--deck"><div class="zone-label">DECK</div></div>
-      </div>
-
-      <!-- Hand -->
+        <div class="zone zone--deck" id="playerDeckZone"></div>
       <div class="hand" id="hand"></div>
 
     </section>
-  </main>
+    </main>
+  </div><!-- /duel field wrapper -->
 
   <div class="instruction" id="instruction">ARRASTE UMA CARTA DA MAO ATE UMA ZONA DE MONSTRO</div>
 
+  </div><!-- /duel field wrapper -->
+  </div><!-- /board-layout -->
+
   <script type="module" src="duel-field.js"></script>
+  <script type="module">
+    import { initContextPanel, registerHandCard, registerCardInZone } from './context-panel.js';
+    import { initTurnSystem, onPhaseChange }                          from './turn-system.js';
+    import { initDeck, onDraw }                                       from './deck-system.js';
+
+    initContextPanel();
+    initTurnSystem();
+    await initDeck();
+
+    // quando comprar carta, adiciona à mão
+    onDraw(card => {
+      if (window.__addCardToHand) window.__addCardToHand(card);
+    });
+
+    window.__panelRegisterCard = registerCardInZone;
+    window.__panelRegisterHand = registerHandCard;
+  </script>
 </body>
 </html>

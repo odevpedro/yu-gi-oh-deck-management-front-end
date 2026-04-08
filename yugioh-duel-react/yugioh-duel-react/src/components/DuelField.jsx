@@ -34,6 +34,7 @@ export default function DuelField() {
 
         {/* ── Center phase bar ── */}
         <div className="field-center" id="turnBlock">
+          <div className="instruction" id="instruction">{instruction}</div>
           <div className="fc-turn">TURN {turn}</div>
           <div className="fc-phase-track">
             {PHASES.map((p, i) => (
@@ -77,8 +78,6 @@ export default function DuelField() {
         </section>
 
       </main>
-
-      <div className="instruction" id="instruction">{instruction}</div>
     </>
   )
 }

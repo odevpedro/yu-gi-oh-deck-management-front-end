@@ -189,7 +189,7 @@ export default function CardWrap({ card, index, total, hovered, selected, onHove
       <div className="card" ref={cardRef}>
         <div className="art">
           {img && (
-            <img src={img} alt="" loading="lazy" crossOrigin="anonymous" />
+            <img src={img} alt="" loading="lazy" />
           )}
           <div className="sparkles" />
         </div>

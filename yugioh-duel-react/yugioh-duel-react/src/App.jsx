@@ -7,6 +7,8 @@ import DeckViewer   from './components/DeckViewer'
 import PhaseOverlay from './components/PhaseOverlay'
 import CardContextMenu from './components/CardContextMenu'
 import DebugPanel     from './components/DebugPanel'
+import WinScreen      from './components/WinScreen'
+import GYViewer       from './components/GYViewer'
 
 function DuelApp() {
   const { initDeck, setHandCards, clearSelection, selectedCard } = useDuel()
@@ -22,20 +24,22 @@ function DuelApp() {
       'https://db.ygoprodeck.com/api/v7/cardinfo.php?type=Spell+Card&num=1&offset=0',
       'https://db.ygoprodeck.com/api/v7/cardinfo.php?type=Trap+Card&num=1&offset=0',
     ]
+    const loadHand = (cards) => setHandCards(cards)
+    window.__reloadHand = loadHand
     Promise.all(urls.map(u => fetch(u).then(r => r.json())))
-      .then(results => setHandCards(results.map(r => r.data[0])))
+      .then(results => loadHand(results.map(r => r.data[0])))
       .catch(() => setHandCards(Array.from({ length: 7 }, (_, i) => ({
         id: i + 1, name: `Card ${i+1}`,
         type: ['Fusion Monster','Synchro Monster','XYZ Monster','Link Monster',
                'Effect Monster','Spell Card','Trap Card'][i],
         card_images: [{ image_url: '' }],
       }))))
+    return () => { window.__reloadHand = null }
   }, []) // eslint-disable-line
 
   const onBgClick = useCallback((e) => {
     if (!e.target.closest('.card-wrap') && !e.target.closest('[data-zone-key]')
-        && !e.target.closest('.action-bar') && !e.target.closest('.ccm')
-        && selectedCard) {
+        && !e.target.closest('.action-bar') && selectedCard) {
       clearSelection()
     }
   }, [selectedCard, clearSelection])
@@ -56,6 +60,8 @@ function DuelApp() {
       <PhaseOverlay />
       <DeckViewer />
       <CardContextMenu />
+      <GYViewer />
+      <WinScreen />
     </div>
   )
 }

@@ -11,6 +11,7 @@ import { logger }              from '../utils/logger'
 import { resolveActions }     from '../utils/actionResolver'
 import { imageToDataURL, proxiedUrl } from '../utils/cardHelpers'
 import { attackArrow }        from '../fx/effects/AttackArrow'
+import { destroyFX }          from '../utils/fx'
 
 export class LocalEngine extends DuelEngineAdapter {
 
@@ -295,27 +296,27 @@ export class LocalEngine extends DuelEngineAdapter {
       : (targetSlot.card?.atk ?? 0)
     const diff = atkA - statB
 
+    const destroyZone = (zoneKey, side) => {
+      const el = document.querySelector(`[data-zone-key="${zoneKey}"]`)
+      destroyFX(el, () => sendToGraveyard(zoneKey, side))
+    }
+
     if (diff > 0) {
-      // Atacante vence — alvo destruído
-      sendToGraveyard(targetZone, 'opponent')
+      destroyZone(targetZone, 'opponent')
       setInstruction(`DESTROYED! (${atkA} vs ${statB})`)
     } else if (diff < 0) {
-      // Defensor vence
       const dmg = Math.abs(diff)
       if (targetSlot.position !== 'defense') {
-        // ATK vs ATK — atacante destruído e toma dano
-        sendToGraveyard(attackingZone, 'player')
+        destroyZone(attackingZone, 'player')
       }
-      // Dano ao player
       const barEl = document.getElementById('playerLpBar')
       const valEl = document.getElementById('playerLpVal')
       dealDamage(dmg, 'player')
       if (lpDamageFX) lpDamageFX(dmg, barEl, valEl, 45)
       setInstruction(`BLOCKED — ${dmg} DAMAGE TAKEN`)
     } else {
-      // Empate — ambos destruídos
-      sendToGraveyard(targetZone,    'opponent')
-      sendToGraveyard(attackingZone, 'player')
+      destroyZone(targetZone,    'opponent')
+      destroyZone(attackingZone, 'player')
       setInstruction('TIE — BOTH DESTROYED')
     }
   }

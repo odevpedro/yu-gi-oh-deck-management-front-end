@@ -27,6 +27,8 @@ function dominantColor(px, W, H) {
 
 // ── Sobel edge glow ──────────────────────────────────────
 export async function sobelEdgeGlow(zoneEl, dataUrl) {
+  // Only works with data: URLs — cross-origin <img> taints the canvas
+  if (!dataUrl || !dataUrl.startsWith('data:')) return
   const W = zoneEl.clientWidth
   const H = zoneEl.clientHeight
 
@@ -112,7 +114,7 @@ export function normalSummonFX(zoneEl) {
     const t = Math.min((ts-start)/DURATION, 1)
     ctx.clearRect(0, 0, CW, CH)
     if (t < .35) {
-      const bt = t/.35, brad = ZW*.6*bt
+      const bt = t/.35, brad = Math.max(ZW*.6*bt, 0.001)
       const alpha = bt<.5?bt*2:(1-(bt-.5)*2)
       const grad = ctx.createRadialGradient(cx,cy,0,cx,cy,brad)
       grad.addColorStop(0,`rgba(255,255,255,${alpha*.9})`)
@@ -141,11 +143,12 @@ export function normalSummonFX(zoneEl) {
     })
     if (t<.55) {
       const ct=t/.55, calpha=1-ct
-      const cGrad=ctx.createRadialGradient(cx,cy,0,cx,cy,ZW*.25)
+      const cRad = Math.max(ZW*.25, 0.001)
+      const cGrad=ctx.createRadialGradient(cx,cy,0,cx,cy,cRad)
       cGrad.addColorStop(0,`rgba(255,255,255,${calpha*.95})`)
       cGrad.addColorStop(.4,`rgba(0,220,255,${calpha*.5})`)
       cGrad.addColorStop(1,'rgba(0,0,0,0)')
-      ctx.beginPath(); ctx.arc(cx,cy,ZW*.25,0,Math.PI*2); ctx.fillStyle=cGrad; ctx.fill()
+      ctx.beginPath(); ctx.arc(cx,cy,cRad,0,Math.PI*2); ctx.fillStyle=cGrad; ctx.fill()
     }
     if (t<1) requestAnimationFrame(draw); else cv.remove()
   })(performance.now())
@@ -314,6 +317,101 @@ export function attackFX(attackerEl, targetEl, onImpact) {
 }
 
 // ── LP Damage FX ─────────────────────────────────────────
+// ── Destruction FX ───────────────────────────────────────
+// Red flash + shatter dissolve. Calls onComplete when done.
+export function destroyFX(zoneEl, onComplete) {
+  if (!zoneEl) { onComplete?.(); return }
+  const ZW = zoneEl.clientWidth  || 85
+  const ZH = zoneEl.clientHeight || 124
+  const PAD = 60, CW = ZW + PAD*2, CH = ZH + PAD*2
+  const cx = CW/2, cy = CH/2
+
+  const cv = document.createElement('canvas')
+  cv.width = CW; cv.height = CH
+  cv.style.cssText = `position:absolute;left:${-PAD}px;top:${-PAD}px;` +
+    `width:${CW}px;height:${CH}px;pointer-events:none;z-index:20;mix-blend-mode:screen;`
+  zoneEl.appendChild(cv)
+  const ctx = cv.getContext('2d')
+
+  // Shards — random polygons that fly outward
+  const SHARD_COUNT = 18
+  const shards = Array.from({ length: SHARD_COUNT }, (_, i) => ({
+    angle:  (i / SHARD_COUNT) * Math.PI * 2 + (Math.random() - .5) * .4,
+    speed:  1.4 + Math.random() * 2.2,
+    size:   4 + Math.random() * 10,
+    spin:   (Math.random() - .5) * .3,
+    rot:    Math.random() * Math.PI * 2,
+    x: cx + (Math.random() - .5) * ZW * .4,
+    y: cy + (Math.random() - .5) * ZH * .4,
+    color:  Math.random() > .5 ? '255,60,40' : '255,160,30',
+  }))
+
+  const DURATION = 520
+  let start = null;
+
+  // Fade out the card art simultaneously
+  const cardImg = zoneEl.querySelector('img')
+  if (cardImg) cardImg.style.transition = `opacity ${DURATION * .6}ms ease-out`
+
+  ;(function draw(ts) {
+    if (!start) start = ts
+    const t = Math.min((ts - start) / DURATION, 1)
+    ctx.clearRect(0, 0, CW, CH)
+
+    // Flash burst at t=0→0.2
+    if (t < .25) {
+      const bt = t / .25
+      const alpha = bt < .5 ? bt * 2 : (1 - bt) * 2
+      const brad = Math.max(Math.max(ZW, ZH) * .7 * bt, 0.001)
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, brad)
+      g.addColorStop(0, `rgba(255,200,100,${alpha * .95})`)
+      g.addColorStop(.4, `rgba(255,60,20,${alpha * .7})`)
+      g.addColorStop(1, 'rgba(0,0,0,0)')
+      ctx.beginPath(); ctx.arc(cx, cy, brad, 0, Math.PI * 2)
+      ctx.fillStyle = g; ctx.fill()
+    }
+
+    // Shards fly outward
+    if (t > .05) {
+      const st = (t - .05) / .95
+      shards.forEach(s => {
+        const dist = st * s.speed * Math.max(ZW, ZH) * .8
+        const sx = s.x + Math.cos(s.angle) * dist
+        const sy = s.y + Math.sin(s.angle) * dist
+        const alpha = st < .4 ? 1 : 1 - (st - .4) / .6
+        const sz = s.size * (1 - st * .5)
+        s.rot += s.spin
+        ctx.save()
+        ctx.translate(sx, sy)
+        ctx.rotate(s.rot)
+        ctx.beginPath()
+        ctx.moveTo(0, -sz); ctx.lineTo(sz * .6, sz * .6); ctx.lineTo(-sz * .6, sz * .6)
+        ctx.closePath()
+        ctx.fillStyle = `rgba(${s.color},${alpha * .9})`
+        ctx.shadowBlur = 8; ctx.shadowColor = `rgba(${s.color},.7)`
+        ctx.fill()
+        ctx.restore()
+      })
+    }
+
+    // Red overlay on the zone itself (tint the card)
+    if (t < .4) {
+      const rt = t / .4
+      ctx.fillStyle = `rgba(200,20,10,${(1 - rt) * .45})`
+      ctx.fillRect(PAD, PAD, ZW, ZH)
+    }
+
+    if (cardImg) cardImg.style.opacity = String(Math.max(0, 1 - t * 1.6))
+
+    if (t < 1) {
+      requestAnimationFrame(draw)
+    } else {
+      cv.remove()
+      onComplete?.()
+    }
+  })(performance.now())
+}
+
 export function lpDamageFX(amount, barEl, valEl, newLpPct) {
   if (!barEl || !valEl) return
   const rect = valEl.getBoundingClientRect()

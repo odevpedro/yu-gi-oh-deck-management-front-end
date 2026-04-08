@@ -2,6 +2,7 @@
 // DuelContext.jsx — Estado global do duelo
 // ═══════════════════════════════════════════════════════════
 import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react'
+import { sfxSummon, sfxSpecialSummon, sfxAttack, sfxDestroy, sfxDamage, sfxVictory, sfxDefeat, sfxCardSet, sfxFlip } from '../utils/sfx'
 
 export const PHASES = [
   { id: 'DRAW',    label: 'DRAW',    short: 'DP'  },
@@ -46,6 +47,11 @@ export function highlightAttackTargets() {
     '.field-side--opponent .zone--monster,.field-side--opponent .zone--spell'
   ).forEach(el => el.classList.add('zone--attack-valid'))
 }
+export function highlightTributeTargets() {
+  clearZoneHighlights()
+  document.querySelectorAll('#playerZones .zone--monster.occupied')
+    .forEach(el => el.classList.add('zone--tribute-target'))
+}
 
 export function DuelProvider({ children }) {
 
@@ -62,12 +68,14 @@ export function DuelProvider({ children }) {
 
   // ── Per-turn flags ────────────────────────────────────
   const [flags, setFlags] = useState({
-    normalSummonedThisTurn:  false,
-    positionChangedThisTurn: false,
-    attackedZones:           new Set(),
+    normalSummonedThisTurn:   false,
+    positionChangedZones:     new Set(),   // per-zone, not global
+    attackedZones:            new Set(),
   })
   const setNormalSummoned  = useCallback(() => setFlags(f => ({ ...f, normalSummonedThisTurn: true })), [])
-  const setPositionChanged = useCallback(() => setFlags(f => ({ ...f, positionChangedThisTurn: true })), [])
+  const setPositionChanged = useCallback((zk) => setFlags(f => ({
+    ...f, positionChangedZones: new Set([...f.positionChangedZones, zk]),
+  })), [])
   const setZoneAttacked    = useCallback((zk) => setFlags(f => ({
     ...f, attackedZones: new Set([...f.attackedZones, zk]),
   })), [])
@@ -77,13 +85,22 @@ export function DuelProvider({ children }) {
     setTimeout(() => setPhaseOverlay(null), 1000)
   }
 
+  // Ref allows nextPhase (defined before handCards state) to read current hand size
+  const handCardsRef = useRef([])
+
   const nextPhase = useCallback(() => {
+    // Hand size limit: cannot leave END phase with more than 6 cards
     setPhaseIndex(prev => {
+      const currentPhase = PHASES[prev]
+      if (currentPhase.id === 'END' && handCardsRef.current.length > 6) {
+        setInstruction(`HAND LIMIT — DISCARD ${handCardsRef.current.length - 6} CARD(S) TO END TURN`)
+        return prev  // block advance
+      }
       const next = prev + 1
       if (next >= PHASES.length) {
         setTurn(t => t + 1)
         setDrawnThisTurn(false)
-        setFlags({ normalSummonedThisTurn: false, positionChangedThisTurn: false, attackedZones: new Set() })
+        setFlags({ normalSummonedThisTurn: false, positionChangedZones: new Set(), attackedZones: new Set() })
         triggerOverlay(PHASES[0])
         return 0
       }
@@ -97,15 +114,18 @@ export function DuelProvider({ children }) {
   // ── LP ────────────────────────────────────────────────
   const [playerLP,   setPlayerLP]   = useState(8000)
   const [opponentLP, setOpponentLP] = useState(6000)
+  const [winner,     setWinner]     = useState(null) // 'player' | 'opponent' | null
+
   const dealDamage = useCallback((amount, target = 'opponent') => {
-    if (target === 'opponent') setOpponentLP(v => Math.max(0, v - amount))
-    else setPlayerLP(v => Math.max(0, v - amount))
+    if (target === 'opponent') setOpponentLP(v => { const n = Math.max(0, v - amount); if (n === 0) { setWinner('player'); sfxVictory() } else sfxDamage(); return n })
+    else                       setPlayerLP  (v => { const n = Math.max(0, v - amount); if (n === 0) { setWinner('opponent'); sfxDefeat() } else sfxDamage(); return n })
   }, [])
 
   // ── Deck ──────────────────────────────────────────────
   const [deckCards,      setDeckCards]      = useState([])
   const [deckRemaining,  setDeckRemaining]  = useState([])
   const [deckViewerOpen, setDeckViewerOpen] = useState(false)
+  const [gyViewer, setGyViewer] = useState(null) // 'player' | 'opponent' | null
 
   const initDeck = useCallback(async () => {
     try {
@@ -136,29 +156,74 @@ export function DuelProvider({ children }) {
 
   // ── Hand ──────────────────────────────────────────────
   const [handCards, setHandCards] = useState([])
+  // Keep ref in sync so nextPhase can read current length without closure issues
+  useEffect(() => { handCardsRef.current = handCards }, [handCards])
   const addCardToHand      = useCallback((card)  => setHandCards(prev => prev.length < 10 ? [...prev, card] : prev), [])
   const removeCardFromHand = useCallback((index) => setHandCards(prev => prev.filter((_, i) => i !== index)), [])
+  const discardFromHand    = useCallback((index) => {
+    setHandCards(prev => {
+      const card = prev[index]
+      if (card) setPlayerGY(gy => [...gy, card])
+      return prev.filter((_, i) => i !== index)
+    })
+  }, [])
 
   // ── Field zones ───────────────────────────────────────
   const [occupiedZones, setOccupiedZones] = useState({})
-  const [playerGY,   setPlayerGY]   = useState([])
-  const [opponentGY, setOpponentGY] = useState([])
-
-  const sendToGraveyard = useCallback((zoneKey, owner = 'player') => {
-    setOccupiedZones(prev => {
-      const entry = prev[zoneKey]
-      if (!entry) return prev
-      if (owner === 'player') setPlayerGY(gy => [...gy, entry.card])
-      else                    setOpponentGY(gy => [...gy, entry.card])
-      const next = { ...prev }
-      delete next[zoneKey]
-      return next
-    })
-  }, [])
   // slotData = { card, dataUrl, position?, faceDown?, summonedThisTurn? }
   const placeCardInZone = useCallback((zoneKey, slotData) => {
     setOccupiedZones(prev => ({ ...prev, [zoneKey]: slotData }))
   }, [])
+
+  // ── Graveyard ─────────────────────────────────────────
+  const [playerGY,   setPlayerGY]   = useState([])
+  const [opponentGY, setOpponentGY] = useState([])
+
+  const sendToGraveyard = useCallback((zoneKey, side = 'opponent') => {
+    setOccupiedZones(prev => {
+      const slot = prev[zoneKey]
+      if (!slot) return prev
+      const next = { ...prev }
+      delete next[zoneKey]
+      if (side === 'player') {
+        setPlayerGY(gy => [...gy, slot.card])
+      } else {
+        setOpponentGY(gy => [...gy, slot.card])
+      }
+      return next
+    })
+  }, [])
+
+  // ── Mock opponent field ────────────────────────────────
+  const MOCK_OPPONENT = [
+    { id: 89631139, name: 'Blue-Eyes White Dragon',
+      type: 'Normal Monster', attribute: 'LIGHT', level: 8, atk: 3000, def: 2500,
+      card_images: [{ image_url: 'https://images.ygoprodeck.com/images/cards/89631139.jpg' }] },
+    { id: 46986414, name: 'Dark Magician',
+      type: 'Normal Monster', attribute: 'DARK', level: 7, atk: 2500, def: 2100,
+      card_images: [{ image_url: 'https://images.ygoprodeck.com/images/cards/46986414.jpg' }] },
+    { id: 15025844, name: 'Mystical Elf',
+      type: 'Normal Monster', attribute: 'LIGHT', level: 4, atk: 800, def: 2000,
+      card_images: [{ image_url: 'https://images.ygoprodeck.com/images/cards/15025844.jpg' }] },
+  ]
+  const MOCK_POSITIONS = ['attack', 'attack', 'defense']
+
+  const populateMockOpponent = useCallback(() => {
+    setOccupiedZones(prev => {
+      const next = { ...prev }
+      MOCK_OPPONENT.forEach((card, i) => {
+        const zk = `om${i}`
+        next[zk] = {
+          card, dataUrl: card.card_images[0].image_url,
+          position: MOCK_POSITIONS[i], faceDown: false,
+          summonedThisTurn: false, hasAttackedThisTurn: false,
+        }
+      })
+      return next
+    })
+  }, []) // eslint-disable-line
+
+  useEffect(() => { populateMockOpponent() }, []) // eslint-disable-line
 
   // ── Drag ─────────────────────────────────────────────
   const [dragState, setDragState] = useState({ active: false, fromIndex: null, card: null })
@@ -174,6 +239,8 @@ export function DuelProvider({ children }) {
   // { card, location: 'hand'|'field', index?, zoneKey?, position? }
   const [selectedCard, setSelectedCard] = useState(null)
   const [activeAction, setActiveAction] = useState(null)
+  // tributePending: { card, index, tributesNeeded, tributesSoFar: [] }
+  const [tributePending, setTributePending] = useState(null)
 
   const selectCard = useCallback((info) => {
     clearZoneHighlights()
@@ -187,6 +254,7 @@ export function DuelProvider({ children }) {
     setSelectedCard(null)
     setActiveAction(null)
     setAttackingZone(null)
+    setTributePending(null)
   }, [])
 
   // ── Instruction bar ───────────────────────────────────
@@ -231,7 +299,17 @@ export function DuelProvider({ children }) {
         clearZoneHighlights()
         setSelectedCard(null)
         setActiveAction(null)
-        setInstruction(isSet ? 'MONSTER SET' : 'SUMMONED!')
+        if (isSet) { sfxCardSet(); setInstruction('MONSTER SET') }
+        else        { sfxSummon(); setInstruction('SUMMONED!') }
+        break
+      }
+      case 'tribute-summon': {
+        const level = selectedCard.card?.level ?? 0
+        const tributesNeeded = level >= 7 ? 2 : 1
+        setTributePending({ card: selectedCard.card, index: selectedCard.index, tributesNeeded, tributesSoFar: [] })
+        setActiveAction('tribute-summon')
+        highlightTributeTargets()
+        setInstruction(`SELECT ${tributesNeeded} MONSTER(S) TO TRIBUTE`)
         break
       }
       case 'activate-spell':
@@ -256,7 +334,8 @@ export function DuelProvider({ children }) {
         clearZoneHighlights()
         setSelectedCard(null)
         setActiveAction(null)
-        setInstruction(faceDown ? 'CARD SET' : 'SPELL ACTIVATED!')
+        if (faceDown) { sfxCardSet(); setInstruction('CARD SET') }
+        else          { sfxSummon();  setInstruction('SPELL ACTIVATED!') }
         break
       }
       case 'attack':
@@ -276,6 +355,7 @@ export function DuelProvider({ children }) {
           setNormalSummoned()
         }
         clearSelection()
+        sfxFlip()
         setInstruction('FLIP SUMMON!')
         break
       case 'change-position':
@@ -286,18 +366,37 @@ export function DuelProvider({ children }) {
             const toDefense = e.position !== 'defense'
             return { ...prev, [selectedCard.zoneKey]: { ...e, position: toDefense ? 'defense' : 'attack', faceDown: false } }
           })
-          setPositionChanged()
+          setPositionChanged(selectedCard.zoneKey)
         }
         clearSelection()
         setInstruction('BATTLE POSITION CHANGED')
         break
+      case 'discard':
+        if (selectedCard.index != null) {
+          discardFromHand(selectedCard.index)
+        }
+        clearSelection()
+        setInstruction('CARD DISCARDED')
+        break
       case 'activate-set':
         if (selectedCard.zoneKey) {
+          const zk = selectedCard.zoneKey
           setOccupiedZones(prev => {
-            const e = prev[selectedCard.zoneKey]
+            const e = prev[zk]
             if (!e) return prev
-            return { ...prev, [selectedCard.zoneKey]: { ...e, faceDown: false, summonedThisTurn: false } }
+            return { ...prev, [zk]: { ...e, faceDown: false, summonedThisTurn: false } }
           })
+          // Spell/Trap goes to GY after activation resolves
+          setTimeout(() => {
+            setOccupiedZones(prev => {
+              const e = prev[zk]
+              if (!e) return prev
+              const next = { ...prev }
+              delete next[zk]
+              setPlayerGY(gy => [...gy, e.card])
+              return next
+            })
+          }, 800)
         }
         clearSelection()
         setInstruction('CARD ACTIVATED!')
@@ -312,7 +411,7 @@ export function DuelProvider({ children }) {
       default:
         break
     }
-  }, [selectedCard, occupiedZones, setNormalSummoned, setPositionChanged, clearSelection])
+  }, [selectedCard, occupiedZones, setNormalSummoned, setPositionChanged, discardFromHand, clearSelection])
 
   // ── Panel ─────────────────────────────────────────────
   const [panelMode,     setPanelMode]     = useState('idle')
@@ -342,6 +441,26 @@ export function DuelProvider({ children }) {
     }
   }, [occupiedZones, activeAction, clearSelection])
 
+  const resetDuel = useCallback(() => {
+    setTurn(1)
+    setPhaseIndex(0)
+    setDrawnThisTurn(false)
+    setPhaseOverlay(null)
+    setFlags({ normalSummonedThisTurn: false, positionChangedZones: new Set(), attackedZones: new Set() })
+    setPlayerLP(8000)
+    setOpponentLP(6000)
+    setWinner(null)
+    setHandCards([])
+    setOccupiedZones({})
+    setPlayerGY([])
+    setOpponentGY([])
+    setAttackingZone(null)
+    setSelectedCard(null)
+    setActiveAction(null)
+    setInstruction('NOVO DUELO — COMPRE UMA CARTA PARA COMEÇAR')
+    setTimeout(() => populateMockOpponent(), 50)
+  }, [populateMockOpponent]) // eslint-disable-line
+
   // expose for Zone (avoids circular context dep)
   useEffect(() => {
     window.__duelCtx = { selectedCard, clearSelection, removeCardFromHand }
@@ -353,12 +472,13 @@ export function DuelProvider({ children }) {
       canDraw, canSummon, canAttack,
       nextPhase, markDrawn, phaseOverlay,
       flags, setNormalSummoned, setPositionChanged, setZoneAttacked,
-      playerLP, opponentLP, dealDamage,
+      playerLP, opponentLP, dealDamage, winner, resetDuel,
       deckCards, deckRemaining, initDeck, drawFromDeck,
-      deckViewerOpen, setDeckViewerOpen,
-      handCards, addCardToHand, removeCardFromHand, setHandCards,
-      occupiedZones, setOccupiedZones, placeCardInZone,
-      playerGY, opponentGY, sendToGraveyard,
+      deckViewerOpen, setDeckViewerOpen, gyViewer, setGyViewer,
+      handCards, addCardToHand, removeCardFromHand, setHandCards, discardFromHand,
+      tributePending, setTributePending,
+      occupiedZones, placeCardInZone, setOccupiedZones,
+      sendToGraveyard, playerGY, opponentGY,
       dragState, startDrag, endDrag,
       attackingZone, startAttack, cancelAttack, setAttackingZone,
       selectedCard, selectCard, clearSelection,

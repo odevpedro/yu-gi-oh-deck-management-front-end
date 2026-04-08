@@ -46,6 +46,10 @@ const ACTION_DEFS = {
     icon: '✦', color: 'green', group: 'activate',
   },
   // ── Universal ────────────────────────────────────────
+  'discard': {
+    id: 'discard', label: 'Discard',
+    icon: '🗑', color: 'red', group: 'discard',
+  },
   'view-details': {
     id: 'view-details', label: 'View Details',
     icon: '◈', color: 'neutral', group: 'info',
@@ -111,6 +115,8 @@ export function resolveActions(selected, phase, flags, occupiedZones) {
       actions.push(make('normal-summon', !noSummonReason, noSummonReason))
       actions.push(make('set-monster',   !noSummonReason, noSummonReason))
     }
+    // Discard always available from hand during Main Phase
+    actions.push(make('discard', inMain, !inMain ? `Can only discard during Main Phase` : null))
   }
 
   // ══════════════════════════════════════════════════════
@@ -134,6 +140,7 @@ export function resolveActions(selected, phase, flags, occupiedZones) {
       !inMain  ? `Can only Set during Main Phase (current: ${phase.label})` :
       !hasZone ? 'No available Spell/Trap Zone' : null
     ))
+    actions.push(make('discard', inMain, !inMain ? `Can only discard during Main Phase` : null))
   }
 
   // ══════════════════════════════════════════════════════
@@ -148,6 +155,7 @@ export function resolveActions(selected, phase, flags, occupiedZones) {
       !inMain  ? `Can only Set during Main Phase (current: ${phase.label})` :
       !hasZone ? 'No available Spell/Trap Zone' : null
     ))
+    actions.push(make('discard', inMain, !inMain ? `Can only discard during Main Phase` : null))
   }
 
   // ══════════════════════════════════════════════════════
@@ -177,13 +185,14 @@ export function resolveActions(selected, phase, flags, occupiedZones) {
       ))
     }
 
-    // Change Position — not if face-down was set this turn, not if already changed
+    // Change Position — not if face-down was set this turn, not if already changed this zone
     if (!isFaceDown) {
+      const posChangedThisZone = flags.positionChangedZones?.has(zoneKey)
       actions.push(make(
         'change-position',
-        inMain && !flags.positionChangedThisTurn,
-        !inMain                       ? `Only during Main Phase (current: ${phase.label})` :
-        flags.positionChangedThisTurn ? 'Battle position already changed this turn' : null
+        inMain && !posChangedThisZone,
+        !inMain            ? `Only during Main Phase (current: ${phase.label})` :
+        posChangedThisZone ? 'Battle position already changed this turn for this monster' : null
       ))
     }
   }

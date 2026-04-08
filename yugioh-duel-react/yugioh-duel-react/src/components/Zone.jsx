@@ -1,11 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // Zone.jsx — 100% declarativo, sem escrita imperativa no DOM
 // ═══════════════════════════════════════════════════════════
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
 import { useDuel }         from '../contexts/DuelContext'
 import { engine }           from '../engine'
 import { logger }           from '../utils/logger'
 import { isExtraType, imageToDataURL, proxiedUrl } from '../utils/cardHelpers'
+import { sfxAttack }        from '../utils/sfx'
 import {
   normalSummonFX, specialSummonFX, spellActivationFX,
   sobelEdgeGlow, lpDamageFX as lpDamageFXUtil,
@@ -37,28 +38,45 @@ export default function Zone({
   className = '',
 }) {
   const {
-    occupiedZones, placeCardInZone,
-    dragState, endDrag, removeCardFromHand,
+    occupiedZones, placeCardInZone, setOccupiedZones,
+    dragState, endDrag, removeCardFromHand, setHandCards,
     attackingZone, setAttackingZone,
     dealDamage, setInstruction,
-    sendToGraveyard, setOccupiedZones,
+    sendToGraveyard, setPlayerGY,
     updatePanel,
     selectedCard, selectCard,
     activeAction, clearSelection,
-    playerGY, opponentGY,
+    phase, flags, setZoneAttacked, setNormalSummoned,
+    tributePending, setTributePending,
+    playerGY, opponentGY, gyViewer, setGyViewer,
   } = useDuel()
 
-  const zoneRef    = useRef(null)
-  const prevZoneId = useRef(null)  // tracks which card last triggered FX
-  const fxLock     = useRef(false)
+  const zoneRef     = useRef(null)
+  const prevZoneId  = useRef(null)  // tracks which card last triggered FX
+  const fxLock      = useRef(false)
+  const prevFaceDown = useRef(null)
 
   const cardData   = zoneKey ? occupiedZones[zoneKey] : null
   const isOccupied = !!cardData
+  const [flipping, setFlipping] = useState(false)
 
   // ── FX when card lands ─────────────────────────────────
   // Use card.id as stable identity key
   const cardId = cardData?.card?.id ?? null
 
+  // ── Flip animation when faceDown→false ────────────────
+  useEffect(() => {
+    if (!isOccupied) { prevFaceDown.current = null; return }
+    const wasFaceDown = prevFaceDown.current
+    const isFaceDown  = cardData?.faceDown ?? false
+    prevFaceDown.current = isFaceDown
+    if (wasFaceDown === true && isFaceDown === false) {
+      setFlipping(true)
+      setTimeout(() => setFlipping(false), 420)
+    }
+  }, [cardData?.faceDown, isOccupied]) // eslint-disable-line
+
+  // ── FX when card lands ────────────────────────────────
   useEffect(() => {
     if (!cardData || prevZoneId.current === cardId || fxLock.current) return
     prevZoneId.current = cardId
@@ -153,6 +171,11 @@ export default function Zone({
     setInstruction('SELECIONE UMA CARTA PARA CONTINUAR')
   }, [dragState, isValidDrop, endDrag, commitCard, clearSelection, setInstruction])
 
+  // ── GY zone click → open viewer ───────────────────────
+  const handleGyClick = useCallback(() => {
+    setGyViewer(side)
+  }, [side, setGyViewer])
+
   // ── click: zona alvo (action bar) ou seleção de campo ─
   const handlePlayerClick = useCallback(async (e) => {
     e.stopPropagation()
@@ -166,10 +189,60 @@ export default function Zone({
       return
     }
 
+    // 1b. Tribute selection mode
+    if (tributePending && type === 'monster' && isOccupied && side === 'player') {
+      const already = tributePending.tributesSoFar.includes(zoneKey)
+      if (already) return
+      const newSoFar = [...tributePending.tributesSoFar, zoneKey]
+      if (newSoFar.length < tributePending.tributesNeeded) {
+        // Need more tributes
+        setTributePending({ ...tributePending, tributesSoFar: newSoFar })
+        setInstruction(`SELECT ${tributePending.tributesNeeded - newSoFar.length} MORE MONSTER(S) TO TRIBUTE`)
+        zoneRef.current?.classList.add('zone--tribute-selected')
+        return
+      }
+      // All tributes selected — complete the summon
+      const freeIdx = [0,1,2,3,4].find(i => !occupiedZones[`pm${i}`] || newSoFar.includes(`pm${i}`))
+      if (freeIdx === undefined) { setInstruction('NO FREE MONSTER ZONE'); return }
+      const rawImg = tributePending.card?.url || tributePending.card?.card_images?.[0]?.image_url || ''
+      const displayUrl = rawImg ? `https://corsproxy.io/?url=${encodeURIComponent(rawImg)}` : ''
+      setOccupiedZones(prev => {
+        const next = { ...prev }
+        newSoFar.forEach(zk => {
+          if (next[zk]) {
+            setPlayerGY(gy => [...gy, next[zk].card])
+            delete next[zk]
+          }
+        })
+        next[`pm${freeIdx}`] = {
+          card: tributePending.card, dataUrl: displayUrl,
+          position: 'attack', faceDown: false, summonedThisTurn: true,
+        }
+        return next
+      })
+      setHandCards(prev => prev.filter((_, i) => i !== tributePending.index))
+      setNormalSummoned()
+      clearSelection()
+      document.querySelectorAll('.zone--tribute-selected').forEach(el => el.classList.remove('zone--tribute-selected'))
+      setInstruction('TRIBUTE SUMMON!')
+      return
+    }
+
     // 2. Selecionar carta no campo → abre action bar
     if (isOccupied && (type === 'monster' || type === 'spell')) {
       const entry = occupiedZones[zoneKey]
       if (!entry) return
+
+      // Battle Phase shortcut: clicking your own monster auto-declares it as attacker
+      if (phase?.id === 'BATTLE' && type === 'monster' && !entry.faceDown && !flags?.attackedZones?.has(zoneKey)) {
+        setAttackingZone(zoneKey)
+        selectCard({ card: entry.card, location: 'field', zoneKey, position: entry.position ?? 'attack', menuAnchor: null })
+        setInstruction('CHOOSE AN OPPONENT TARGET TO ATTACK')
+        document.querySelectorAll('.field-selected').forEach(el => el.classList.remove('field-selected'))
+        zoneRef.current?.classList.add('field-selected')
+        return
+      }
+
       const rect = zoneRef.current?.getBoundingClientRect()
       selectCard({
         card: entry.card, location: 'field', zoneKey,
@@ -188,33 +261,79 @@ export default function Zone({
     }
   }, [
     isValidDrop, actionPending, selectedCard,
-    isOccupied, type, occupiedZones, zoneKey,
-    commitCard, clearSelection, selectCard, updatePanel, setInstruction,
+    isOccupied, type, occupiedZones, zoneKey, phase, flags,
+    commitCard, clearSelection, selectCard, updatePanel, setInstruction, setAttackingZone,
+    tributePending, setTributePending, setOccupiedZones, setHandCards, setPlayerGY, setNormalSummoned,
   ])
 
   // ── Zona oponente: recebe ataque ──────────────────────
   const handleOpponentClick = useCallback((e) => {
-    logger.attack('Zone clicked', { attackingZone, targetZone: zoneKey, side })
-    if (!attackingZone) { logger.attack('Aborted — no attackingZone'); return }
     e.stopPropagation()
+    logger.attack('Zone clicked', { attackingZone, selectedCard, targetZone: zoneKey, side })
 
-    const gameState = { occupiedZones }
-    const mutations = {
-      setOccupiedZones,
-      setAttackingZone, dealDamage, sendToGraveyard, setInstruction,
-      lpDamageFX: lpDamageFXUtil,
+    const resolveAttack = (fromZone) => {
+      setZoneAttacked(fromZone)
+      sfxAttack()
+      const gameState = { occupiedZones }
+      const mutations = {
+        setOccupiedZones,
+        setAttackingZone, dealDamage, sendToGraveyard, setInstruction,
+        lpDamageFX: lpDamageFXUtil,
+      }
+      engine.handleAttackTarget(fromZone, zoneKey || null, gameState, mutations)
     }
 
-    engine.handleAttackTarget(attackingZone, zoneKey || null, gameState, mutations)
-  }, [attackingZone, occupiedZones, zoneKey, setAttackingZone, dealDamage, sendToGraveyard, setInstruction])
+    // Path 1: attack already declared via action bar
+    if (attackingZone) {
+      resolveAttack(attackingZone)
+      return
+    }
+
+    if (phase?.id !== 'BATTLE') {
+      logger.attack('Aborted — not Battle Phase')
+      return
+    }
+
+    // Path 2: monster selected on field
+    if (selectedCard?.location === 'field' && selectedCard?.zoneKey) {
+      const slot = occupiedZones[selectedCard.zoneKey]
+      if (slot && !slot.faceDown && !flags?.attackedZones?.has(selectedCard.zoneKey)) {
+        setAttackingZone(selectedCard.zoneKey)
+        resolveAttack(selectedCard.zoneKey)
+        return
+      }
+    }
+
+    // Path 3: auto-pick first eligible player monster
+    const PLAYER_ZONES = ['pm0','pm1','pm2','pm3','pm4']
+    const attacker = PLAYER_ZONES.find(zk => {
+      const s = occupiedZones[zk]
+      return s && !s.faceDown && !flags?.attackedZones?.has(zk)
+    })
+    if (attacker) {
+      logger.attack('Auto-picked attacker', attacker)
+      setAttackingZone(attacker)
+      resolveAttack(attacker)
+      return
+    }
+
+    logger.attack('Aborted — no eligible attacker on field')
+  }, [
+    attackingZone, selectedCard, phase, flags, occupiedZones, zoneKey,
+    setAttackingZone, dealDamage, sendToGraveyard, setInstruction,
+  ])
 
   // ── Classes ───────────────────────────────────────────
+  const hasAttacked = isOccupied && side === 'player' && flags?.attackedZones?.has(zoneKey)
+
   const classes = [
     'zone',
     TYPE_CLASS[type] ?? '',
     isOccupied  ? 'occupied'     : '',
     isValidDrop ? 'drop-target'  : '',
     side === 'opponent' && attackingZone ? 'attack-target' : '',
+    flipping ? 'zone--flipping' : '',
+    hasAttacked ? 'zone--exhausted' : '',
     className,
   ].filter(Boolean).join(' ')
 
@@ -238,7 +357,7 @@ export default function Zone({
       data-zone-key={zoneKey}
       onMouseEnter={handleMouseEnter}
       onMouseUp={handleMouseUp}
-      onClick={side === 'player' ? handlePlayerClick : handleOpponentClick}
+      onClick={type === 'gy' ? handleGyClick : side === 'player' ? handlePlayerClick : handleOpponentClick}
       style={{ position: 'relative', overflow: 'visible' }}
     >
       {/* Label — só quando vazia */}
@@ -392,6 +511,24 @@ export default function Zone({
             padding: '1px 5px', borderRadius: '2px',
             border: '1px solid rgba(100,50,180,.35)', letterSpacing: '.1em',
           }}>SET</span>
+        </div>
+      )}
+
+      {/* ── Exhausted overlay (já atacou) ── */}
+      {hasAttacked && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 5,
+          background: 'rgba(0,0,0,.45)',
+          borderRadius: '3px', pointerEvents: 'none',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+          paddingBottom: '4px',
+        }}>
+          <span style={{
+            fontFamily: 'Orbitron, monospace', fontSize: '.26rem',
+            letterSpacing: '.08em', color: 'rgba(180,60,60,.9)',
+            background: 'rgba(0,0,0,.7)', padding: '1px 5px',
+            borderRadius: '2px', border: '1px solid rgba(160,40,40,.4)',
+          }}>ATTACKED</span>
         </div>
       )}
     </div>

@@ -36,19 +36,35 @@ export function cardCondition(card) {
   return ''
 }
 
+// ── Domínios com CORS nativo (não precisam de proxy) ─────
+const CORS_OK = [
+  'ygoprodeck.com',
+  'images.ygoprodeck.com',
+  'cdn.ygoprodeck.com',
+]
+function needsProxy(url) {
+  try {
+    const host = new URL(url).hostname
+    return !CORS_OK.some(d => host === d || host.endsWith('.' + d))
+  } catch { return true }
+}
+
 // ── CORS-proxy URL ───────────────────────────────────────
 export function proxiedUrl(rawUrl) {
   if (!rawUrl) return ''
   if (rawUrl.startsWith('data:') || rawUrl.startsWith('blob:')) return rawUrl
+  if (!needsProxy(rawUrl)) return rawUrl
   return `https://corsproxy.io/?url=${encodeURIComponent(rawUrl)}`
 }
 
 // ── Image → data URL (for canvas / FX) ───────────────────
+// Nota: <img src> funciona sem proxy, mas fetch() para canvas exige
+// header CORS que o ygoprodeck não serve — proxy sempre necessário aqui.
 export async function imageToDataURL(url) {
   if (!url) return ''
   if (url.startsWith('data:') || url.startsWith('blob:')) return url
-  const proxied = `https://corsproxy.io/?url=${encodeURIComponent(url)}`
-  const res  = await fetch(proxied)
+  const fetchUrl = `https://corsproxy.io/?url=${encodeURIComponent(url)}`
+  const res  = await fetch(fetchUrl)
   if (!res.ok) throw new Error(`Failed to load image (${res.status})`)
   const blob = await res.blob()
   return new Promise((resolve, reject) => {

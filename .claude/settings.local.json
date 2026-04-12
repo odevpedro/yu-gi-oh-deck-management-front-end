@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(powershell -Command \"Compress-Archive -Path 'yugioh-duel-react/yugioh-duel-react' -DestinationPath 'yugioh-duel-react-ws.zip' -Force\")"
+    ]
+  }
+}

@@ -1023,3 +1023,130 @@ body {
   outline-offset: 2px;
   box-shadow: 0 0 14px rgba(232,168,32,.3) !important;
 }
+
+/* ════════════════════════════════════════
+   RESULT SCREEN
+   ════════════════════════════════════════ */
+.result-overlay {
+  position: fixed; inset: 0; z-index: 9500;
+  background: rgba(0,0,0,.85);
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(6px);
+  animation: result-fade-in .4s ease-out;
+}
+@keyframes result-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.result-panel {
+  background: linear-gradient(180deg, #0d1424 0%, #080e1a 100%);
+  border: 1px solid var(--b-panel);
+  border-radius: 4px;
+  width: min(420px, 90vw);
+  padding: 32px 24px 24px;
+  display: flex; flex-direction: column; align-items: center;
+  box-shadow: 0 24px 80px rgba(0,0,0,.95);
+  animation: result-panel-in .35s cubic-bezier(.23,1,.32,1) both;
+}
+@keyframes result-panel-in {
+  from { opacity: 0; transform: translateY(30px) scale(.95); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.result--win  .result-panel { border-top: 3px solid var(--c-gold); }
+.result--lose .result-panel { border-top: 3px solid var(--c-red); }
+.result--draw .result-panel { border-top: 3px solid rgba(160,160,160,.6); }
+.result-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.8rem; font-weight: 700;
+  letter-spacing: .2em; margin-bottom: 8px;
+}
+.result--win  .result-title { color: var(--c-gold-lt); text-shadow: 0 0 30px rgba(232,168,32,.5); }
+.result--lose .result-title { color: var(--c-red-lt); text-shadow: 0 0 30px rgba(204,34,51,.5); }
+.result--draw .result-title { color: rgba(200,200,200,.7); text-shadow: 0 0 20px rgba(200,200,200,.2); }
+.result-divider {
+  width: 60px; height: 2px; margin: 12px 0 20px;
+  background: linear-gradient(90deg, transparent, var(--c-blue), transparent);
+}
+.result-stats {
+  display: flex; gap: 24px; margin-bottom: 24px;
+}
+.result-stat {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.result-stat-label {
+  font-family: 'Orbitron', monospace;
+  font-size: .38rem; letter-spacing: .1em;
+  color: rgba(255,255,255,.35);
+}
+.result-stat-value {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.1rem; font-weight: 700;
+  color: var(--c-blue-lt);
+}
+.result-actions {
+  display: flex; gap: 12px; margin-top: 8px;
+}
+.result-btn {
+  font-family: 'Orbitron', monospace;
+  font-size: .5rem; letter-spacing: .12em;
+  padding: 10px 24px; border-radius: 2px;
+  cursor: pointer; transition: all .15s;
+  border: 1px solid;
+}
+.result-btn--primary {
+  background: linear-gradient(180deg, #1a3a60 0%, #0f2040 100%);
+  border-color: var(--c-blue);
+  color: var(--c-blue-lt);
+  clip-path: polygon(6px 0%, calc(100% - 6px) 0%, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0% 50%);
+}
+.result-btn--primary:hover {
+  background: linear-gradient(180deg, #1e4a7a 0%, #142850 100%);
+  border-color: var(--c-blue-lt);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(46,143,212,.3);
+}
+
+/* ════════════════════════════════════════
+   TOAST SYSTEM
+   ════════════════════════════════════════ */
+.toast-container {
+  position: fixed; top: 12px; right: 12px; z-index: 9900;
+  display: flex; flex-direction: column; gap: 6px;
+  pointer-events: none;
+}
+.toast {
+  pointer-events: all;
+  font-family: 'Orbitron', monospace;
+  font-size: .45rem; letter-spacing: .07em;
+  padding: 8px 16px;
+  border-radius: 2px;
+  border: 1px solid;
+  cursor: pointer;
+  animation: toast-in .25s ease-out both;
+  max-width: 320px;
+  backdrop-filter: blur(4px);
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.toast--success {
+  background: rgba(42,184,106,.12);
+  border-color: rgba(42,184,106,.4);
+  color: var(--c-green);
+}
+.toast--error {
+  background: rgba(204,34,51,.12);
+  border-color: rgba(204,34,51,.4);
+  color: var(--c-red-lt);
+}
+.toast--warning {
+  background: rgba(232,168,32,.12);
+  border-color: rgba(232,168,32,.4);
+  color: var(--c-gold-lt);
+}
+.toast--info {
+  background: rgba(46,143,212,.12);
+  border-color: rgba(46,143,212,.4);
+  color: var(--c-blue-lt);
+}

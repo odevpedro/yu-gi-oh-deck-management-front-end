@@ -1,7 +1,7 @@
 # Backlog — Yu-Gi-Oh Deck Management Front-end
 
 > Registro vivo do progresso do projeto. Atualizado a cada mudanca de estado de uma funcionalidade.
-> **Ultima atualizacao:** 2026-07-07
+> **Ultima atualizacao:** 2026-07-07 — Sessao de trabalho: WEB-008, WEB-018, WEB-003, marcacao de conclusoes
 
 ---
 
@@ -43,26 +43,17 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` WEB-000 — Adicionar dependencias STOMP + SockJS
+#### `[x]` WEB-000 — Adicionar dependencias STOMP + SockJS
 
-**Descricao:** Instalar as bibliotecas necessarias para conexao WebSocket STOMP com o duel-service.
-
-**Checklist:**
-- [ ] Executar no diretorio `yugioh-duel-react/yugioh-duel-react/`:
-  ```bash
-  npm install @stomp/stompjs sockjs-client
-  npm install -D @types/sockjs-client  # se usar TS no futuro
-  ```
-- [ ] Verificar que `package.json` foi atualizado com as novas dependencias
-- [ ] Verificar que `npm install` passa sem erros
+**Descricao:** `@stomp/stompjs` ^7.3.0 e `sockjs-client` ^1.6.1 instalados e em uso em `duelWebSocket.js`.
 
 **Criterio de aceitacao:** `package.json` contem `@stomp/stompjs` e `sockjs-client`. `npm run dev` funciona.
 
-**Estimativa:** XS
+**Estimativa:** XS — Concluido
 
 ---
 
-#### `[ ]` WEB-001 + WEB-005 — Tela de Login com gerenciamento de JWT
+#### `[x]` WEB-001 + WEB-005 — Tela de Login com gerenciamento de JWT
 
 **Descricao:** Criar tela de login/registro que se comunica com o auth-service. Apos login bem-sucedido, armazenar o JWT no `localStorage` e disponibiliza-lo para todas as requisicoes HTTP e WebSocket.
 
@@ -187,11 +178,11 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 **Depende de:** WEB-000
 
-**Estimativa:** M
+**Estimativa:** M — Concluido
 
 ---
 
-#### `[ ]` WEB-002 — Implementar WebSocketEngine (STOMP)
+#### `[x]` WEB-002 — Implementar WebSocketEngine (STOMP)
 
 **Descricao:** Criar `WebSocketEngine` que implementa o contrato `DuelEngineAdapter` e se conecta ao duel-service via STOMP WebSocket para enviar/receber acoes do duelo em tempo real.
 
@@ -335,11 +326,11 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 **Depende de:** WEB-000, Fase 0 do duel-service (BUG-002, BUG-003, BUG-004), GAME-001 (setup inicial)
 
-**Estimativa:** L
+**Estimativa:** L — Concluido
 
 ---
 
-#### `[ ]` WEB-006 — Tela de Lobby / Criar Duelo
+#### `[x]` WEB-006 — Tela de Lobby / Criar Duelo
 
 **Descricao:** Tela principal apos o login onde o usuario pode ver seus decks e criar um duelo rapido (local ou contra si mesmo para testes).
 
@@ -404,11 +395,11 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 **Depende de:** WEB-001 (login), WEB-002 (WebSocket), deck-service online
 
-**Estimativa:** XL
+**Estimativa:** XL — Concluido (sem integracao com deck-service, apenas input manual de deckId)
 
 ---
 
-#### `[ ]` WEB-008 — Tela de Resultado de Duelo
+#### `[x]` WEB-008 — Tela de Resultado de Duelo
 
 **Descricao:** Quando o duelo termina (recebe evento `/topic/duel/{id}/over`), exibir tela de resultado com informacoes do vencedor, LP finais e botoes para voltar ao lobby.
 
@@ -428,7 +419,27 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 **Depende de:** WEB-002 (WebSocket para receber game over)
 
-**Estimativa:** M
+**Estimativa:** M — Concluido
+
+---
+
+#### `[x]` WEB-018 — Sistema de notificacoes (Toast)
+
+**Descricao:** Sistema de notificacoes temporarias via `ToastContext` com 4 tipos (success, error, warning, info) e auto-dismiss. Usado para feedback de acoes e erros.
+
+**Arquivos:** `src/contexts/ToastContext.jsx`, estilos em `duel-field.css`
+
+**Criterio de aceitacao:** Qualquer componente pode chamar `showToast(message, type)` e uma notificacao aparece no canto superior direito.
+
+**Estimativa:** M — Concluido
+
+---
+
+#### `[x]` WEB-003 — Remover arquivos duplicados
+
+**Descricao:** Removidos `src/fx/effects/LocalEngine.js` e `src/fx/effects/FXManager.js` — duplicatas de `src/engine/LocalEngine.js` e `src/fx/FXManager.js`.
+
+**Estimativa:** XS — Concluido
 
 ---
 
@@ -856,15 +867,11 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` GAME-004 — Limite dinamico de deck
+#### `[x]` GAME-004 — Limite dinamico de deck
 
-**Descricao:** Remover hardcode de 20 cartas. Usar o tamanho real do deck.
+**Descricao:** Implementado — nao ha constante hardcoded de 20 cartas. `deckRemaining.length` e usado dinamicamente.
 
-**Checklist:**
-- [ ] Remover constante `TOTAL_CARDS = 20` em `LocalEngine.js`
-- [ ] Usar `player.deck.length` em todos os lugares
-
-**Estimativa:** S
+**Estimativa:** S — Concluido
 
 ---
 
@@ -1256,6 +1263,14 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 | 2026-04-17 | Visualizador de deck — modal com grid | incluido no MVP |
 | 2026-04-17 | Painel de contexto — stats da carta ao hover | incluido no MVP |
 | 2026-04-17 | POC vanilla JS — prova de conceito inicial | commit inicial |
+| 2026-07-07 | WEB-000: STOMP/SockJS instalados | duelWebSocket.js |
+| 2026-07-07 | WEB-001+005: Login com JWT | LoginPage, AuthContext, tokenManager |
+| 2026-07-07 | WEB-002: WebSocketEngine STOMP | WebSocketEngine, duelWebSocket |
+| 2026-07-07 | WEB-003: Remover duplicatas | fx/effects/ limpos |
+| 2026-07-07 | WEB-006: Lobby + criar duelo | LobbyPage, duelService |
+| 2026-07-07 | WEB-008: Tela de resultado | ResultScreen, gameResult no DuelContext |
+| 2026-07-07 | WEB-018: Sistema de Toast | ToastContext, Toast |
+| 2026-07-07 | GAME-004: Limite dinamico de deck | deckRemaining.length |
 
 ---
 

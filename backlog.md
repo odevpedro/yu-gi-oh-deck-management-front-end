@@ -529,6 +529,283 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
+### Feature Avancadas — UX e Confiabilidade
+
+---
+
+#### `[ ]` WEB-011 — Reconexao automatica WebSocket
+
+**Descricao:** Se a conexao STOMP cair, reconectar automaticamente com backoff exponencial sem perder o estado.
+
+**Onde:** `src/services/duelWebSocket.js`
+
+**Checklist:**
+- [ ] Configurar `reconnectDelay` no `Client` do STOMP: iniciar com 1s, duplicar ate 30s
+- [ ] Ao reconectar, re-inscrever nos topicos `/topic/duel/{id}` e `/topic/duel/{id}/over`
+- [ ] Chamar `GET /api/duels/{duelId}/state` para resync do estado (ver SEC-005 no duel-service)
+- [ ] Exibir indicador "Reconectando..." no HUD durante a tentativa
+- [ ] Apos 5 tentativas falhas, exibir "Conexao perdida" e botao "Tentar novamente"
+
+**Estimativa:** M
+
+---
+
+#### `[ ]` WEB-012 — Botao de conceder (Concede/Surrender)
+
+**Descricao:** Jogador deve poder desistir do duelo a qualquer momento.
+
+**Onde:** `src/components/HUD.jsx` ou `src/components/ActionBar.jsx`
+
+**Checklist:**
+- [ ] Botao "Conceder" (icone de bandeira branca) no HUD
+- [ ] Modal de confirmacao: "Tem certeza que deseja conceder?"
+- [ ] Enviar acao `{ actionType: "SURRENDER" }` via WebSocket
+- [ ] Backend: tratar SURRENDER como fim de duelo com vitoria para o oponente
+- [ ] Confirmar que duel-service aceita actionType=SURRENDER
+
+**Estimativa:** S
+
+---
+
+#### `[ ]` WEB-013 — Loading spinner / skeleton enquanto conecta
+
+**Descricao:** Ao entrar no lobby ou campo de duelo, mostrar feedback visual enquanto carrega.
+
+**Checklist:**
+- [ ] Criar `src/components/LoadingSpinner.jsx` — spinner tematico (cartas girando ou anel yugioh)
+- [ ] Lobby: skeleton de cards enquanto carrega decks
+- [ ] DuelPage: overlay "Conectando ao servidor..." enquanto STOMP nao conecta
+- [ ] Historico: skeleton de linhas enquanto carrega
+
+**Estimativa:** S
+
+---
+
+#### `[ ]` WEB-014 — Log de acoes do duelo
+
+**Descricao:** Painel rolavel com historico de todas as acoes do duelo (ex: "Jogador A invocou Dark Magician", "Jogador B atacou com Blue-Eyes").
+
+**Onde:** `src/components/DuelLog.jsx`
+
+**Checklist:**
+- [ ] Criar `src/components/DuelLog.jsx` — lista vertical rolavel no canto da tela
+- [ ] Cada linha: timestamp compacto + descricao da acao
+- [ ] Cores: azul para o jogador, vermelho para o oponente
+- [ ] Rolar automaticamente para a ultima acao
+- [ ] Integrar com `DuelContext` para escutar acoes e adicionar ao log
+- [ ] Manter ultimas 100 acoes em memoria (rotacionar)
+
+**Estimativa:** M
+
+---
+
+#### `[ ]` WEB-015 — Zona de banimento no campo
+
+**Descricao:** O campo de duelo nao tem zona de banimento. Cartas banidas nao aparecem.
+
+**Onde:** `src/components/DuelField.jsx`
+
+**Checklist:**
+- [ ] Adicionar zona "Banidos" ao lado do cemiterio em cada lado do campo
+- [ ] Exibir cartas banidas em miniatura vertical
+- [ ] Tooltip com nome ao hover
+
+**Estimativa:** S
+
+---
+
+#### `[ ]` WEB-016 — Zona de Extra Deck no campo
+
+**Descricao:** O Extra Deck (Fusao, Sincronia, XYZ, Link) precisa de representacao visual ao lado do deck principal.
+
+**Onde:** `src/components/DuelField.jsx`
+
+**Checklist:**
+- [ ] Adicionar zona "Extra Deck" ao lado do deck principal
+- [ ] Exibir contador: "15/15" ou "8/15"
+- [ ] Ao clicar, abrir modal com as cartas do extra deck
+- [ ] Cartas em posicao face-down (verso) ate serem invocadas
+
+**Estimativa:** S
+
+---
+
+#### `[ ]` WEB-017 — Tela de side deck entre partidas (Match)
+
+**Descricao:** Em formato melhor de 3, entre as partidas o jogador pode trocar ate 15 cartas entre main deck e side deck.
+
+**Onde:** `src/components/SideDeckModal.jsx`
+
+**Checklist:**
+- [ ] Criar modal que mostra Main Deck, Extra Deck e Side Deck lado a lado
+- [ ] Arrastar cartas entre as zonas para trocar
+- [ ] Validar: max 15 cartas trocadas, main deck continua 40-60 apos troca
+- [ ] Confirmar troca → enviar para o servidor antes da proxima partida
+
+**Nota:** Implementar apenas apos suporte a side deck no backend (GAME-006E).
+
+**Estimativa:** L
+
+---
+
+#### `[ ]` WEB-018 — Sistema de notificacoes (Toast)
+
+**Descricao:** Sem feedback de erros/sucessos, o usuario nao sabe se uma acao foi rejeitada ou se algo deu errado.
+
+**Checklist:**
+- [ ] Criar `src/components/Toast.jsx` — notificacao temporaria no canto superior direito
+- [ ] Types: success (verde), error (vermelho), warning (amarelo), info (azul)
+- [ ] Auto-dismiss apos 4s (click para fechar antes)
+- [ ] Criar ToastContext para disparar de qualquer lugar:
+  ```jsx
+  const { showToast } = useToast();
+  showToast('Deck invalido!', 'error');
+  ```
+- [ ] Usar em: erro de login, acao rejeitada, conexao perdida, duelo encontrado, etc.
+
+**Estimativa:** M
+
+---
+
+#### `[ ]` WEB-019 — Modal de detalhe da carta
+
+**Descricao:** Clicar em uma carta deve abrir modal com arte em tamanho grande, nome, efeito, ATK/DEF/Level, tipo, atributo.
+
+**Onde:** `src/components/CardDetailModal.jsx`
+
+**Checklist:**
+- [ ] Ao clicar em qualquer carta no campo/mao, abrir modal overlay
+- [ ] Arte da carta em alta resolucao (imageUrl)
+- [ ] Nome, tipo (Monstro/Magia/Armadilha), atributo, level/stars
+- [ ] Descricao do efeito (texto completo)
+- [ ] ATK/DEF (se monstro)
+- [ ] Fechar com clique fora ou ESC
+
+**Estimativa:** M
+
+---
+
+#### `[ ]` WEB-020 — Timer / relogio de turno
+
+**Descricao:** Cada jogador tem um limite de tempo por turno (ex: 180s). Um relogio visivel adiciona pressao e公平.
+
+**Onde:** `src/components/HUD.jsx`
+
+**Checklist:**
+- [ ] Relogio regressivo visivel no HUD ao lado do nome do jogador ativo
+- [ ] Quando chega a 30s, piscar vermelho
+- [ ] Quando chega a 0, passar automaticamente para END phase (ou conceder)
+- [ ] Configuravel via props/estado do duelo
+
+**Estimativa:** M
+
+---
+
+#### `[ ]` WEB-021 — Pagina 404
+
+**Descricao:** Rotas inexistentes devem mostrar pagina amigavel.
+
+**Checklist:**
+- [ ] Criar `src/pages/NotFoundPage.jsx` com mensagem "Duelo nao encontrado" e botao "Voltar ao Lobby"
+- [ ] Rota `*` no react-router-dom caindo nela
+
+**Estimativa:** XS
+
+---
+
+#### `[ ]` WEB-022 — Variaveis de ambiente (.env)
+
+**Descricao:** URLs dos servicos estao hardcoded. Precisa ser via `.env` para diferentes ambientes (localhost, staging, producao).
+
+**Checklist:**
+- [ ] Criar `.env` e `.env.example`:
+  ```
+  VITE_AUTH_API_URL=http://localhost:8086/auth
+  VITE_DECK_API_URL=http://localhost:8081/decks
+  VITE_DUEL_API_URL=http://localhost:8084
+  VITE_CARD_API_URL=http://localhost:8080/cards
+  VITE_COMMUNITY_API_URL=http://localhost:8087
+  VITE_WS_URL=http://localhost:8084/ws
+  ```
+- [ ] `tokenManager.js` e servicos usarem `import.meta.env.VITE_*`
+
+**Estimativa:** S
+
+---
+
+#### `[ ]` WEB-023 — Chat entre jogadores
+
+**Descricao:** Jogadores devem poder conversar durante o duelo.
+
+**Onde:** `src/components/ChatPanel.jsx`, canal STOMP `/topic/duel/{id}/chat`
+
+**Checklist:**
+- [ ] Canal STOMP dedicado `/topic/duel/{id}/chat` para mensagens
+- [ ] Input de texto + enviar com Enter
+- [ ] Historico de mensagens rolavel
+- [ ] Opcional: mensagens pre-definidas ("Good luck!", "Nice play!", "GG")
+
+**Estimativa:** M
+
+---
+
+#### `[ ]` WEB-024 — Drag feedback (sombra + highlight de zona)
+
+**Descricao:** Ao arrastar uma carta, mostrar sombra seguindo o cursor e destacar zonas validas para drop.
+
+**Onde:** `src/components/CardWrap.jsx`, `src/components/Zone.jsx`
+
+**Checklist:**
+- [ ] Enquanto arrasta, carta tem `box-shadow` aumentado e `scale(1.05)`
+- [ ] Zonas onde a carta pode ser dropada ganham borda verde pulsante
+- [ ] Zonas invalidas ficam com opacidade reduzida
+- [ ] Se soltar fora de zona valida, carta volta para posicao original com animacao
+
+**Estimativa:** M
+
+---
+
+#### `[ ]` WEB-025 — Responsividade basica
+
+**Descricao:** O campo de duelo nao se adapta a diferentes tamanhos de tela.
+
+**Checklist:**
+- [ ] Container principal usa `clamp()` ou `vw` para escalar
+- [ ] Breakpoints: >=1200px (desktop), >=768px (tablet), <768px (mobile)
+- [ ] Mobile: modo paisagem obrigatorio (detectar e orientar usuario)
+- [ ] Cartas e zonas redimensionam proporcionalmente
+
+**Estimativa:** L
+
+---
+
+#### `[ ]` WEB-026 — Cache local de cartas (IndexedDB/lokijs)
+
+**Descricao:** Buscar dados de cartas repetidamente e custoso. Armazenar em cache local.
+
+**Checklist:**
+- [ ] Ao receber carta nova, salvar `{ cardId, name, atk, def, type, imageUrl, description }` no `localStorage`
+- [ ] Antes de buscar na API, verificar cache
+- [ ] Limpar cache a cada 24h ou botao "Recarregar dados"
+
+**Estimativa:** S
+
+---
+
+#### `[ ]` WEB-027 — Gestao de estado offline (Service Worker)
+
+**Descricao:** Se a internet cair durante o duelo, o frontend deve manter o estado visivel ate reconectar.
+
+**Checklist:**
+- [ ] Detectar `navigator.onLine === false` → exibir "Conexao perdida" no HUD
+- [ ] Nao limpar o estado do duelo ao desconectar
+- [ ] Ao reconectar, chamar resync (WEB-011)
+- [ ] Opcional: Service Worker para cache de assets estaticos
+
+**Estimativa:** M
+
+---
+
 ### Jogabilidade (melhorias na engine local)
 
 ---

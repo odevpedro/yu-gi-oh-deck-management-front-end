@@ -2,6 +2,7 @@
 // DuelContext.jsx — Estado global do duelo
 // ═══════════════════════════════════════════════════════════
 import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react'
+import { mapRemoteDuelState } from '../utils/remoteStateMapper'
 
 export const PHASES = [
   { id: 'DRAW',    label: 'DRAW',    short: 'DP'  },
@@ -20,6 +21,57 @@ function shuffle(arr) {
     ;[arr[i], arr[j]] = [arr[j], arr[i]]
   }
   return arr
+}
+
+function backendCardId(card) {
+  return card?.cardId ?? card?.id
+}
+
+function zoneIndexFromKey(zoneKey) {
+  const match = String(zoneKey ?? '').match(/\d+$/)
+  return match ? Number(match[0]) : undefined
+}
+
+function isSpellOrTrap(card) {
+  const type = String(card?.type ?? '').toUpperCase()
+  return type.includes('SPELL') || type.includes('TRAP')
+}
+
+function remoteActionPayload(actionId, selectedCard) {
+  const cardId = backendCardId(selectedCard?.card)
+
+  switch (actionId) {
+    case 'normal-summon':
+      return { actionType: 'SUMMON', cardId }
+    case 'set-monster':
+    case 'set-spell':
+    case 'set-trap':
+      return { actionType: 'SET', cardId }
+    case 'activate-spell':
+    case 'activate-set':
+      return { actionType: 'SPELL', cardId }
+    default:
+      return null
+  }
+}
+
+function remoteZoneActionPayload(card, zoneKey, actionId) {
+  const cardId = backendCardId(card)
+  if (!cardId) return null
+
+  let actionType = 'SUMMON'
+
+  if (actionId === 'activate-spell') {
+    actionType = 'SPELL'
+  } else if (actionId?.startsWith('set') || isSpellOrTrap(card)) {
+    actionType = 'SET'
+  }
+
+  return {
+    actionType,
+    cardId,
+    zoneIndex: zoneIndexFromKey(zoneKey),
+  }
 }
 
 // ── Zone highlight DOM helpers ────────────────────────────
@@ -48,6 +100,8 @@ export function highlightAttackTargets() {
 }
 
 export function DuelProvider({ children }) {
+  const remoteTransportRef = useRef(null)
+  const [isRemoteDuel, setIsRemoteDuel] = useState(false)
 
   // ── Turn / Phase ──────────────────────────────────────
   const [turn,          setTurn]          = useState(1)
@@ -78,6 +132,11 @@ export function DuelProvider({ children }) {
   }
 
   const nextPhase = useCallback(() => {
+    if (remoteTransportRef.current) {
+      remoteTransportRef.current.advancePhase()
+      return
+    }
+
     setPhaseIndex(prev => {
       const next = prev + 1
       if (next >= PHASES.length) {
@@ -189,8 +248,78 @@ export function DuelProvider({ children }) {
     setAttackingZone(null)
   }, [])
 
+  const configureRemoteTransport = useCallback((transport) => {
+    remoteTransportRef.current = transport
+    setIsRemoteDuel(!!transport)
+  }, [])
+
+  const sendRemoteAttackTarget = useCallback((attackerZoneKey, targetZoneKey) => {
+    const attacker = occupiedZones[attackerZoneKey]?.card
+    const target = targetZoneKey ? occupiedZones[targetZoneKey]?.card : null
+
+    if (!remoteTransportRef.current || !attacker) return
+
+    remoteTransportRef.current.sendAction({
+      actionType: 'ATTACK',
+      cardId: backendCardId(attacker),
+      targetId: backendCardId(target),
+    })
+    setAttackingZone(null)
+    clearZoneHighlights()
+    setInstruction('ATAQUE ENVIADO')
+  }, [occupiedZones])
+
+  const sendRemoteCardToZone = useCallback((card, zoneKey, actionId) => {
+    if (!remoteTransportRef.current) return false
+
+    const payload = remoteZoneActionPayload(card, zoneKey, actionId)
+    if (!payload) return false
+
+    remoteTransportRef.current.sendAction(payload)
+    clearZoneHighlights()
+    setInstruction('ACAO ENVIADA')
+    return true
+  }, [])
+
+  // ── Game result ───────────────────────────────────────
+  const [gameResult, setGameResult] = useState(null)
+  const [showResult, setShowResult] = useState(false)
+
   // ── Instruction bar ───────────────────────────────────
   const [instruction, setInstruction] = useState('')
+
+  const applyRemoteState = useCallback((remoteState, playerId) => {
+    const mapped = mapRemoteDuelState(remoteState, playerId)
+    if (!mapped) return
+
+    setTurn(mapped.turn)
+    setPhaseIndex(mapped.phaseIndex)
+    setPlayerLP(mapped.playerLP)
+    setOpponentLP(mapped.opponentLP)
+    setHandCards(mapped.handCards)
+    setDeckCards(mapped.deckCards)
+    setDeckRemaining(mapped.deckRemaining)
+    setOccupiedZones(mapped.occupiedZones)
+    setPlayerGY(mapped.playerGY)
+    setOpponentGY(mapped.opponentGY)
+    setDrawnThisTurn(true)
+    if (mapped.status === 'FINISHED') {
+      const isDraw = !mapped.winnerId
+      const isVictory = !isDraw && mapped.winnerId === playerId
+      setInstruction(isDraw ? 'EMPATE' : isVictory ? 'VITORIA' : 'DERROTA')
+      setGameResult({
+        winnerId: mapped.winnerId,
+        isVictory,
+        isDraw,
+        playerLP: mapped.playerLP,
+        opponentLP: mapped.opponentLP,
+        turn: mapped.turn,
+      })
+      setShowResult(true)
+    } else {
+      setInstruction(mapped.isPlayerTurn ? 'SEU TURNO' : 'TURNO DO OPONENTE')
+    }
+  }, [])
 
   useEffect(() => {
     if (selectedCard) return
@@ -208,6 +337,25 @@ export function DuelProvider({ children }) {
   // ── executeAction ─────────────────────────────────────
   const executeAction = useCallback((actionId) => {
     if (!selectedCard) return
+
+    if (remoteTransportRef.current) {
+      if (actionId === 'attack') {
+        setActiveAction('attack')
+        setAttackingZone(selectedCard.zoneKey)
+        highlightAttackTargets()
+        setInstruction('CHOOSE AN OPPONENT TARGET TO ATTACK')
+        return
+      }
+
+      const payload = remoteActionPayload(actionId, selectedCard)
+      if (payload) {
+        remoteTransportRef.current.sendAction(payload)
+        clearSelection()
+        setInstruction('ACAO ENVIADA')
+      }
+      return
+    }
+
     switch (actionId) {
       case 'normal-summon':
       case 'set-monster': {
@@ -361,8 +509,11 @@ export function DuelProvider({ children }) {
       playerGY, opponentGY, sendToGraveyard,
       dragState, startDrag, endDrag,
       attackingZone, startAttack, cancelAttack, setAttackingZone,
+      isRemoteDuel, configureRemoteTransport, sendRemoteAttackTarget, sendRemoteCardToZone,
       selectedCard, selectCard, clearSelection,
       activeAction, setActiveAction, executeAction,
+      applyRemoteState,
+      gameResult, setGameResult, showResult, setShowResult,
       panelMode, panelData, panelLastData, updatePanel, scheduleIdle,
       instruction, setInstruction,
     }}>

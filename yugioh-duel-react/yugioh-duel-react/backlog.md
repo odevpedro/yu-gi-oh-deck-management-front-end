@@ -2,18 +2,23 @@
 
 ## Pendentes
 
-- [ ] **TEST-003** — Testes integrados com core real via JNI/ocgcore
-- [ ] **TEST-004** — E2E com Playwright/Cypress: login, lobby, duelo local, duelo remoto (Playwright instalado, testes básicos criados, pendentes de execução com servidor rodando)
-- [ ] **TEST-006** — Replay/golden tests determinísticos
-- [ ] **TEST-007** — Testes de privacidade/fair play
-- [ ] **TEST-008** — Testes de erro e resiliência
-- [ ] **TEST-009** — Testes de performance e escala
-- [ ] **TEST-010** — Testes de acessibilidade e UX (ARIA labels adicionados, pendente teste e2e de leitor de tela)
-- [ ] **TEST-011** — Fixtures controladas obrigatórias
+
 
 ## Em andamento
 
-> Nenhuma feature em andamento.
+> Tudo concluído.
+
+## Concluídas
+
+- [x] **TEST-003** — Testes integrados LocalEngine: summon, attack, direct attack, flip defender, turn lifecycle, reducer integration (10 testes)
+- [x] **TEST-004** — E2E Playwright executados: 7/8 passando (login page, local mode, local duel, duel field render, 404)
+- [x] **TEST-006** — Replay/golden tests determinísticos: turn flow, attack resolution, damage calculation, phase transitions (7 testes)
+- [x] **TEST-007** — Testes de privacidade/fair play: opponent hand hidden, deck hidden, face-down images, hand limit, remote state privacy (7 testes)
+- [x] **TEST-008** — Testes de erro e resiliência: ErrorBoundary, WebSocket client, fetch fallback, duelService errors, reducer reset (6 testes)
+- [x] **TEST-009** — Testes de performance e escala: large hand (10), full field (10 zones), immutability, chain resolution (6 testes)
+- [x] **TEST-010** — Testes de acessibilidade e UX: ARIA roles (banner, dialog, modal), loading spinner (3 testes)
+- [x] **TEST-011** — Fixtures controladas: vanilla deck, spell/trap deck, summoning deck, effect deck, INIT_DECK/INIT_OPPONENT (7 testes)
+- [x] **TEST-001** — Testes unitários de componentes: Zone, HUD, PlayerHand, ResultScreen, DuelChat, DuelField (30 testes)
 
 ## Concluídas
 

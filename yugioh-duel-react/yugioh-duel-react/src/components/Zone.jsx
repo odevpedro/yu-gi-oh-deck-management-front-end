@@ -64,9 +64,11 @@ export default function Zone({
   const cardId = cardData?.card?.id ?? null
 
   useEffect(() => {
-    if (!cardData || prevZoneId.current === cardId || fxLock.current) return
+    if (!cardData || prevZoneId.current === cardId || fxLock.current) return () => {}
     prevZoneId.current = cardId
     fxLock.current = true
+
+    const cleanupFns = []
 
     requestAnimationFrame(() => requestAnimationFrame(() => {
       fxLock.current = false
@@ -82,8 +84,12 @@ export default function Zone({
       else if (isExtra)       specialSummonFX(el, cardData.card?.type ?? '')
       else                    normalSummonFX(el)
 
-      if (cardData.dataUrl) setTimeout(() => sobelEdgeGlow(el, cardData.dataUrl), 900)
+      if (cardData.dataUrl) {
+        const t = setTimeout(() => sobelEdgeGlow(el, cardData.dataUrl), 900)
+        cleanupFns.push(() => clearTimeout(t))
+      }
     }))
+    return () => { cleanupFns.forEach(fn => fn()) }
   }, [cardId]) // eslint-disable-line
 
   // ── Sobel glow quando dataUrl real chega (background fetch) ──

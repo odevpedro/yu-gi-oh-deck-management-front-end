@@ -2,20 +2,42 @@
 
 ## Pendentes
 
-- [ ] **TEST-001** — Bateria unitária de componentes principais: carta, mão, campo, zonas, modal de seleção, painel de ações, log, LP, fase/turno, cemitério, banidas, extra deck, loading/error e responsividade básica
-- [ ] **TEST-002** — Testes de contrato front-core: parsing de mensagens, ordem, mensagens desconhecidas/incompletas, serialização de resposta, rejeição do core, ações ilegais e sincronização do estado
-- [ ] **TEST-003** — Testes integrados com core real via JNI/ocgcore: decks controlados, seed determinístico, fluxo de input do core, resolução de ações e comparação UI vs snapshot retornado
-- [ ] **TEST-004** — E2E com Playwright/Cypress: login, lobby, duelo local, duelo remoto, compra, invocação, efeitos, ataque, chain, vitória/derrota e reinício
-- [ ] **TEST-005** — Testes visuais/regressão: posições das cartas, overlays, modais, menus, destaques, cartas face-down, banidas, materiais Xyz, zonas extras e layouts desktop/mobile
-- [ ] **TEST-006** — Replay/golden tests determinísticos: gravação e reprodução de duelos com comparação de mensagens, log, estado renderizado e resultado final
-- [ ] **TEST-007** — Testes de privacidade/fair play: mão e deck do oponente ocultos, revelação temporária, payloads privados e rejeição de manipulação via devtools
-- [ ] **TEST-008** — Testes de erro e resiliência: falha do core, falha JNI, mensagem inválida, timeout, core encerrado e recuperação sem tela branca
-- [ ] **TEST-009** — Testes de performance e escala: mão grande, campo cheio, chain longa e duelo longo sem travar a interface
-- [ ] **TEST-010** — Testes de acessibilidade e UX: teclado, foco, contraste, labels, feedback de ação inválida, loading de resposta e fim de duelo claro
-- [ ] **TEST-011** — Fixtures controladas obrigatórias: deck vanilla, deck de invocações, deck de efeitos simples, deck de chain/corrente, deck de zonas/limites, deck de condições de vitória/derrota
-- [ ] **WEB-023** — E2E com Cypress/Playwright cobrindo o fluxo completo de duelo e regressão visual
+- [ ] **TEST-001** — Bateria unitária de componentes principais
+- [ ] **TEST-002** — Testes de contrato front-core
+- [ ] **TEST-003** — Testes integrados com core real via JNI/ocgcore
+- [ ] **TEST-004** — E2E com Playwright/Cypress
+- [ ] **TEST-005** — Testes visuais/regressão
+- [ ] **TEST-006** — Replay/golden tests determinísticos
+- [ ] **TEST-007** — Testes de privacidade/fair play
+- [ ] **TEST-008** — Testes de erro e resiliência
+- [ ] **TEST-009** — Testes de performance e escala
+- [ ] **TEST-010** — Testes de acessibilidade e UX
+- [ ] **TEST-011** — Fixtures controladas obrigatórias
+- [ ] **WEB-023** — E2E com Cypress/Playwright
+- [ ] **WEB-006b** — Matchmaking: ver jogadores próximos e desafiar via community-service
+- [ ] **WEB-017** — Side deck screen entre matches (melhor-de-3)
+- [ ] **WEB-027** — Cache local de cartas (IndexedDB/lokijs)
+- [ ] **WEB-028** — Service Worker offline
+- [ ] **UX-001** — Efeitos sonoros (Howler.js ou HTML5 Audio)
+- [ ] **QLT-007** — Acessibilidade ARIA e navegação por teclado
 
 ## Em andamento
+
+> Nenhuma feature em andamento.
+
+## Concluídas
+
+- [x] **WEB-022** — Variáveis .env + .env.example: todas as URLs movidas para env vars, authService refatorado para usar apiClient + gateway
+- [x] **WEB-022b** — Token storage consolidado: apiClient agora usa tokenManager (localStorage unificado)
+- [x] **WEB-023** — Chat entre jogadores via STOMP: DuelChat componente + subscription /topic/duel/{id}/chat
+- [x] **WEB-024** — Drag feedback: shadow + zone highlighting (CSS .drop-target, classes no Zone)
+- [x] **MOTION-003** — Transições de página: AnimatePresence + motion.div em App.jsx
+- [x] **MOTION-004** — Glow em cartas jogáveis: .card-playable-glow CSS animation + highlightPlayableCards()
+- [x] **MOTION-005** — Screen shake em dano >= 2000: screenShake() em fx.js, chamado em dealDamage
+- [x] **MOTION-006** — Partículas vitória/derrota: victoryParticles() via Canvas
+- [x] **MOTION-007** — Card flip 3D: cardFlipAnimation() + CSS perspective/rotateY
+- [x] **GAME-001b** — IA melhorada: defesa priority (set face-down se oponente tem atacantes), divisão atk/def por prioridade, cálculo de dano correto
+- [x] **QLT-005** — Cleanup de timers: Zone.jsx com cleanupFns, HUD com flashRef separados por player, clearTimeout nos returns
 
 > Nenhuma feature em andamento.
 

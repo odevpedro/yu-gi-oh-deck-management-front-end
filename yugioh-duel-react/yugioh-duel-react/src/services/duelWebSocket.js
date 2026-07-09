@@ -13,7 +13,7 @@ function parseMessageBody(message) {
   }
 }
 
-export function createDuelClient({ duelId, token, onStateUpdate, onGameOver, onError, onReconnect }) {
+export function createDuelClient({ duelId, token, onStateUpdate, onGameOver, onError, onReconnect, onChatMessage }) {
   let attempt = 0
 
   const client = new Client({
@@ -33,6 +33,9 @@ export function createDuelClient({ duelId, token, onStateUpdate, onGameOver, onE
       client.subscribe(`/topic/duel/${duelId}/over`, (message) => {
         onGameOver?.(parseMessageBody(message))
       })
+      client.subscribe(`/topic/duel/${duelId}/chat`, (message) => {
+        onChatMessage?.(parseMessageBody(message))
+      })
     },
     onStompError: (frame) => {
       onError?.(frame.headers?.message ?? 'STOMP error')
@@ -51,6 +54,13 @@ export function createDuelClient({ duelId, token, onStateUpdate, onGameOver, onE
 
   client.activate()
   return client
+}
+
+export function sendChatMessage(client, duelId, message, playerId) {
+  client.publish({
+    destination: '/app/duel.chat',
+    body: JSON.stringify({ duelId, message, playerId }),
+  })
 }
 
 export function sendAction(client, action) {

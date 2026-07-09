@@ -367,6 +367,89 @@ export function showPhaseBlock(anchorEl, msg) {
   ],{duration:1200,fill:'forwards'}).finished.then(()=>el.remove())
 }
 
+// ── Screen shake (heavy damage) ──────────────────────────
+export function screenShake(intensity = 8, duration = 400) {
+  const el = document.getElementById('root') || document.body
+  el.animate([
+    { transform: `translate(${intensity}px, ${-intensity}px)` },
+    { transform: `translate(${-intensity}px, ${intensity * 0.5}px)`, offset: 0.15 },
+    { transform: `translate(${intensity * 0.5}px, ${-intensity * 0.7}px)`, offset: 0.3 },
+    { transform: `translate(${-intensity * 0.3}px, ${intensity * 0.3}px)`, offset: 0.5 },
+    { transform: `translate(0, 0)` },
+  ], { duration, easing: 'ease-out', fill: 'forwards' })
+}
+
+// ── Victory/Defeat particles (MOTION-006) ────────────────
+export function victoryParticles(victory) {
+  const cv = document.createElement('canvas')
+  cv.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9999;'
+  cv.width = window.innerWidth
+  cv.height = window.innerHeight
+  document.body.appendChild(cv)
+  const ctx = cv.getContext('2d')
+  const colors = victory
+    ? ['#ffd700', '#ff6b6b', '#48dbfb', '#ff9ff3', '#feca57']
+    : ['#ff4757', '#eccc68', '#ff6348', '#7bed9f', '#dfe6e9']
+  const particles = Array.from({ length: victory ? 80 : 50 }, () => ({
+    x: Math.random() * cv.width, y: cv.height + 20,
+    vx: (Math.random() - 0.5) * 4, vy: -(Math.random() * 6 + 3),
+    size: Math.random() * 6 + 3, color: colors[Math.floor(Math.random() * colors.length)],
+    life: 1, decay: 0.005 + Math.random() * 0.01,
+    rotation: Math.random() * 360, rotSpeed: (Math.random() - 0.5) * 10,
+    shape: Math.random() > 0.5 ? 'circle' : 'rect',
+  }))
+  let start = null
+  ;(function draw(ts) {
+    if (!start) start = ts
+    ctx.clearRect(0, 0, cv.width, cv.height)
+    let alive = false
+    particles.forEach(p => {
+      if (p.life <= 0) return
+      alive = true
+      p.x += p.vx
+      p.y += p.vy
+      p.vy += 0.08
+      p.life -= p.decay
+      p.rotation += p.rotSpeed
+      ctx.save()
+      ctx.globalAlpha = Math.max(0, p.life)
+      ctx.translate(p.x, p.y)
+      ctx.rotate((p.rotation * Math.PI) / 180)
+      ctx.fillStyle = p.color
+      if (p.shape === 'circle') {
+        ctx.beginPath()
+        ctx.arc(0, 0, p.size, 0, Math.PI * 2)
+        ctx.fill()
+      } else {
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size)
+      }
+      ctx.restore()
+    })
+    if (alive) requestAnimationFrame(draw)
+    else cv.remove()
+  })(performance.now())
+}
+
+// ── Card flip 3D animation (MOTION-007) ──────────────────
+export function cardFlipAnimation(el, faceDown, duration = 500) {
+  el.style.transition = `transform ${duration}ms ease-in-out`
+  el.style.transform = faceDown ? 'rotateY(180deg)' : 'rotateY(0deg)'
+  el.style.transformStyle = 'preserve-3d'
+}
+
+// ── Glow highlight on playable cards (MOTION-004) ────────
+export function highlightPlayableCards(selector) {
+  document.querySelectorAll(selector).forEach(el => {
+    el.classList.add('card-playable-glow')
+  })
+}
+
+export function clearPlayableHighlights(selector) {
+  document.querySelectorAll(selector).forEach(el => {
+    el.classList.remove('card-playable-glow')
+  })
+}
+
 // ── Draw card animation (deck → hand) ────────────────────
 export function drawCardAnimation(card, deckZoneEl, handEl, onComplete) {
   if (!deckZoneEl || !handEl) { onComplete?.(); return }

@@ -1,4 +1,4 @@
-// ── Card type helpers ────────────────────────────────────
+const CORS_PROXY = import.meta.env.VITE_CORS_PROXY ?? 'https://corsproxy.io'
 export function cardType(t = '') {
   const u = t.toUpperCase()
   if (u.includes('SPELL')) return 'SPELL'
@@ -47,7 +47,7 @@ export function proxiedUrl(rawUrl) {
 export async function imageToDataURL(url) {
   if (!url) return ''
   if (url.startsWith('data:') || url.startsWith('blob:')) return url
-  const proxied = `https://corsproxy.io/?url=${encodeURIComponent(url)}`
+  const proxied = `${CORS_PROXY}/?url=${encodeURIComponent(url)}`
   const res  = await fetch(proxied)
   if (!res.ok) throw new Error(`Failed to load image (${res.status})`)
   const blob = await res.blob()

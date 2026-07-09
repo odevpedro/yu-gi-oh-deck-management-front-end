@@ -12,8 +12,9 @@ import CardContextMenu from '../components/CardContextMenu'
 import DebugPanel     from '../components/DebugPanel'
 import ResultScreen from '../components/ResultScreen'
 import CardDetailModal from '../components/CardDetailModal'
+import DuelChat     from '../components/DuelChat'
 import { searchCards } from '../services/cardService'
-import { advancePhase, createDuelClient, sendAction } from '../services/duelWebSocket'
+import { advancePhase, createDuelClient, sendAction, sendChatMessage } from '../services/duelWebSocket'
 import { getAccessToken } from '../services/tokenManager'
 import { getDuelState } from '../services/duelService'
 
@@ -22,6 +23,8 @@ export default function DuelPage() {
   const navigate = useNavigate()
   const isLocal = !duelId || ['local', 'undefined', 'null'].includes(duelId)
   const [lightTheme, setLightTheme] = useState(() => localStorage.getItem('duel-theme') === 'light')
+  const [chatMessages, setChatMessages] = useState([])
+  const chatRef = useRef(null)
 
   useEffect(() => {
     document.documentElement.classList.toggle('light-theme', lightTheme)
@@ -71,11 +74,16 @@ export default function DuelPage() {
         setShowResult(true)
       },
       onError: (message) => setInstruction(message),
+      onChatMessage: (msg) => setChatMessages(prev => [...prev, msg]),
     })
 
     configureRemoteTransport({
       sendAction: (action) => sendAction(client, { duelId, ...action }),
       advancePhase: () => advancePhase(client, duelId),
+      sendChat: (message) => {
+        sendChatMessage(client, duelId, message, user.id)
+        setChatMessages(prev => [...prev, { playerId: user.id, message, timestamp: Date.now() }])
+      },
     })
 
     return () => {
@@ -113,6 +121,7 @@ export default function DuelPage() {
         <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', position:'relative', minWidth:0, height:'100%' }}>
           <DuelField />
         </div>
+        {!isLocal && <DuelChat messages={chatMessages} onSend={(msg) => remoteTransportRef.current?.sendChat?.(msg)} />}
       </div>
       <PhaseOverlay />
       <DeckViewer />

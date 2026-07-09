@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import { DuelProvider } from './contexts/DuelContext'
 import { AuthProvider } from './contexts/AuthContext'
 import { ToastProvider } from './contexts/ToastContext'
@@ -11,7 +12,22 @@ import DuelPage from './pages/DuelPage'
 import NotFoundPage from './pages/NotFoundPage'
 import HistoryPage from './pages/HistoryPage'
 
-export default function App() {
+const pageVariants = {
+  initial: { opacity: 0, y: 12, scale: 0.98 },
+  animate: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.25, ease: 'easeOut' } },
+  exit: { opacity: 0, y: -8, scale: 0.97, transition: { duration: 0.15, ease: 'easeIn' } },
+}
+
+function AnimatedPage({ children }) {
+  return (
+    <motion.div variants={pageVariants} initial="initial" animate="animate" exit="exit" style={{ width: '100%', height: '100%' }}>
+      {children}
+    </motion.div>
+  )
+}
+
+function AppRoutes() {
+  const location = useLocation()
   const [lightTheme, setLightTheme] = useState(() => localStorage.getItem('duel-theme') === 'light')
 
   useEffect(() => {
@@ -20,29 +36,37 @@ export default function App() {
   }, [lightTheme])
 
   return (
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        <Route path="/" element={
+          <AnimatedPage><ProtectedRoute requireAuth={false}><LoginPage /></ProtectedRoute></AnimatedPage>
+        } />
+        <Route path="/lobby" element={
+          <AnimatedPage><ProtectedRoute><LobbyPage /></ProtectedRoute></AnimatedPage>
+        } />
+        <Route path="/duel/:duelId" element={
+          <AnimatedPage><ProtectedRoute><DuelPage /></ProtectedRoute></AnimatedPage>
+        } />
+        <Route path="/duel/local" element={
+          <AnimatedPage><ProtectedRoute><DuelPage /></ProtectedRoute></AnimatedPage>
+        } />
+        <Route path="/history" element={
+          <AnimatedPage><ProtectedRoute><HistoryPage /></ProtectedRoute></AnimatedPage>
+        } />
+        <Route path="*" element={<AnimatedPage><NotFoundPage /></AnimatedPage>} />
+      </Routes>
+    </AnimatePresence>
+  )
+}
+
+export default function App() {
+  return (
     <ErrorBoundary>
     <AuthProvider>
       <ToastProvider>
         <BrowserRouter>
           <DuelProvider>
-            <Routes>
-              <Route path="/" element={
-                <ProtectedRoute requireAuth={false}><LoginPage /></ProtectedRoute>
-              } />
-              <Route path="/lobby" element={
-                <ProtectedRoute><LobbyPage /></ProtectedRoute>
-              } />
-              <Route path="/duel/:duelId" element={
-                <ProtectedRoute><DuelPage /></ProtectedRoute>
-              } />
-              <Route path="/duel/local" element={
-                <ProtectedRoute><DuelPage /></ProtectedRoute>
-              } />
-              <Route path="/history" element={
-                <ProtectedRoute><HistoryPage /></ProtectedRoute>
-              } />
-              <Route path="*" element={<NotFoundPage />} />
-            </Routes>
+            <AppRoutes />
           </DuelProvider>
         </BrowserRouter>
       </ToastProvider>

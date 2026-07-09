@@ -13,6 +13,10 @@ function isSpellOrTrap(type) {
   return t.includes('SPELL') || t.includes('TRAP')
 }
 
+function monsterAtk(card) { return card?.atk ?? 0 }
+
+function monsterDef(card) { return card?.def ?? 0 }
+
 export function useAiOpponent(isLocal) {
   const duel = useDuel()
   const runningRef = useRef(false)
@@ -55,42 +59,86 @@ export function useAiOpponent(isLocal) {
         }
 
         if (phase.id === 'MAIN1' || phase.id === 'MAIN2') {
-          const freeZone = opponentMonsterZones.find(z => !occupiedZones[z])
-          const monsterIdx = opponentHand.findIndex((_, i) => {
-            const c = opponentHand[i]
-            return c && isMonster(c.type) && freeZone
-          })
+          const freeMonsterZones = opponentMonsterZones.filter(z => !occupiedZones[z])
+          const freeSpellZones = opponentSpellZones.filter(z => !occupiedZones[z])
 
-          if (monsterIdx >= 0 && freeZone) {
-            const card = opponentHand[monsterIdx]
-            removeFromOpponentHand(monsterIdx)
-            setOccupiedZones(prev => ({
-              ...prev,
-              [freeZone]: {
-                card,
-                position: 'attack',
-                faceDown: false,
-                summonedThisTurn: true,
+          if (phase.id === 'MAIN1') {
+            const playerAttackers = playerMonsterZones
+              .map(z => occupiedZones[z])
+              .filter(e => e?.card && e.position !== 'defense')
+
+            const bestDefender = (playerAttackers.length > 0)
+              ? opponentHand
+                  .filter(c => c && isMonster(c.type) && freeMonsterZones.length > 0)
+                  .sort((a, b) => monsterDef(b) - monsterDef(a))[0]
+              : null
+
+            if (bestDefender && freeMonsterZones.length > 0) {
+              const idx = opponentHand.indexOf(bestDefender)
+              if (idx >= 0) {
+                const zone = freeMonsterZones[0]
+                removeFromOpponentHand(idx)
+                setOccupiedZones(prev => ({
+                  ...prev,
+                  [zone]: {
+                    card: bestDefender,
+                    position: 'defense',
+                    faceDown: true,
+                    summonedThisTurn: true,
+                  }
+                }))
+                setInstruction(`OPONENTE — BAIXOU ${bestDefender.name} EM DEFESA`)
+                await wait(AI_DELAY)
               }
-            }))
-            setInstruction(`OPONENTE — INVOCou ${card.name}`)
-            await wait(AI_DELAY)
+            }
+
+            const bestAttacker = opponentHand
+              .filter(c => c && isMonster(c.type) && freeMonsterZones.length > 0)
+              .sort((a, b) => monsterAtk(b) - monsterAtk(a))[0]
+
+            if (bestAttacker && freeMonsterZones.length > 0) {
+              const idx = opponentHand.indexOf(bestAttacker)
+              if (idx >= 0) {
+                const zone = freeMonsterZones[0]
+                removeFromOpponentHand(idx)
+                setOccupiedZones(prev => ({
+                  ...prev,
+                  [zone]: {
+                    card: bestAttacker,
+                    position: 'attack',
+                    faceDown: false,
+                    summonedThisTurn: true,
+                  }
+                }))
+                setInstruction(`OPONENTE — INVOCou ${bestAttacker.name} (ATK ${bestAttacker.atk})`)
+                await wait(AI_DELAY)
+              }
+            }
+
+            const stIdx = opponentHand.findIndex(c => c && isSpellOrTrap(c.type))
+            if (stIdx >= 0 && freeSpellZones.length > 0) {
+              const card = opponentHand[stIdx]
+              removeFromOpponentHand(stIdx)
+              setOccupiedZones(prev => ({
+                ...prev,
+                [freeSpellZones[0]]: { card, position: 'spell', faceDown: true, summonedThisTurn: true }
+              }))
+              setInstruction(`OPONENTE — BAIXOU ${card.name}`)
+              await wait(AI_DELAY / 2)
+            }
           }
 
           if (phase.id === 'MAIN2') {
             const stIdx = opponentHand.findIndex(c => c && isSpellOrTrap(c.type))
-            if (stIdx >= 0) {
-              const freeST = opponentSpellZones.find(z => !occupiedZones[z])
-              if (freeST) {
-                const card = opponentHand[stIdx]
-                removeFromOpponentHand(stIdx)
-                setOccupiedZones(prev => ({
-                  ...prev,
-                  [freeST]: { card, position: 'spell', faceDown: true, summonedThisTurn: true }
-                }))
-                setInstruction(`OPONENTE — BAIXOU ${card.name}`)
-                await wait(AI_DELAY / 2)
-              }
+            if (stIdx >= 0 && freeSpellZones.length > 0) {
+              const card = opponentHand[stIdx]
+              removeFromOpponentHand(stIdx)
+              setOccupiedZones(prev => ({
+                ...prev,
+                [freeSpellZones[0]]: { card, position: 'spell', faceDown: true, summonedThisTurn: true }
+              }))
+              setInstruction(`OPONENTE — BAIXOU ${card.name}`)
+              await wait(AI_DELAY / 2)
             }
           }
 
@@ -102,7 +150,7 @@ export function useAiOpponent(isLocal) {
 
         if (phase.id === 'BATTLE') {
           const opponentAttackers = opponentMonsterZones
-            .map((z, i) => ({ zoneKey: z, ...(occupiedZones[z] || {}) }))
+            .map(z => ({ zoneKey: z, ...(occupiedZones[z] || {}) }))
             .filter(e => e.card && e.position !== 'defense')
 
           const playerDefenders = playerMonsterZones
@@ -110,56 +158,59 @@ export function useAiOpponent(isLocal) {
             .filter(e => e.card)
 
           if (opponentAttackers.length > 0) {
-            const attacker = opponentAttackers.reduce((a, b) =>
-              (a.card.atk || 0) > (b.card.atk || 0) ? a : b
+            const sortedAttackers = [...opponentAttackers].sort((a, b) =>
+              monsterAtk(b.card) - monsterAtk(a.card)
             )
 
-            const target = playerDefenders.length > 0
-              ? playerDefenders.reduce((a, b) =>
-                  (a.card.atk || 0) < (b.card.atk || 0) ? a : b
-                )
-              : null
+            for (const attacker of sortedAttackers) {
+              const opponentDefenders = playerMonsterZones
+                .filter(z => occupiedZones[z]?.card)
+                .filter(z => occupiedZones[z].card.cardId !== attacker.card.cardId || true)
+                .map(z => ({ zoneKey: z, ...(occupiedZones[z] || {}) }))
 
-            setInstruction(
-              target
-                ? `OPONENTE — ATACOU ${target.card.name} COM ${attacker.card.name}`
-                : `OPONENTE — ATAQUE DIRETO COM ${attacker.card.name}`
-            )
-            await wait(AI_DELAY)
+              const atk = monsterAtk(attacker.card)
 
-            const atk = attacker.card.atk || 0
-            const def = target?.card?.def || attacker.card.def || 0
-            const pos = target?.position || 'attack'
+              const canDestroy = opponentDefenders.filter(t =>
+                monsterAtk(t.card) < atk || (t.position === 'defense' && monsterDef(t.card) < atk)
+              )
+              const weakestTarget = canDestroy.length > 0
+                ? canDestroy.sort((a, b) => monsterAtk(a.card) - monsterAtk(b.card))[0]
+                : null
 
-            const targetDef = pos === 'defense' ? (target?.card?.def || 0) : atk
+              if (weakestTarget) {
+                const def = weakestTarget.position === 'defense' ? monsterDef(weakestTarget.card) : monsterAtk(weakestTarget.card)
+                const dmg = Math.abs(atk - def)
 
-            if (target && (atk > targetDef || atk > (target.card.atk || 0))) {
-              setOccupiedZones(prev => {
-                const next = { ...prev }
-                delete next[target.zoneKey]
-                return next
-              })
-              setPlayerGY(prev => [...prev, target.card])
-              const dmg = pos === 'defense' ? Math.abs(atk - targetDef) : atk - (target.card.atk || 0)
-              dealDamage(dmg, 'player')
-              setInstruction(`OPONENTE — ${attacker.card.name} DESTRUIU ${target.card.name} (${dmg} DMG)`)
-            } else if (!target) {
-              dealDamage(atk, 'player')
-              setInstruction(`OPONENTE — ATAQUE DIRETO (${atk} DMG)`)
-            } else {
-              setOccupiedZones(prev => {
-                const next = { ...prev }
-                delete next[attacker.zoneKey]
-                return next
-              })
-              setOpponentGY(prev => [...prev, attacker.card])
-              const dmg = (target.card.atk || 0) - atk
-              dealDamage(dmg, 'opponent')
-              setInstruction(`OPONENTE — ${attacker.card.name} FOI DESTRUÍDO (${dmg} DMG)`)
+                setOccupiedZones(prev => {
+                  const next = { ...prev }
+                  delete next[weakestTarget.zoneKey]
+                  return next
+                })
+                setPlayerGY(prev => [...prev, weakestTarget.card])
+                const damageToPlayer = weakestTarget.position === 'attack' ? dmg : 0
+                if (damageToPlayer > 0) dealDamage(damageToPlayer, 'player')
+                setInstruction(`OPONENTE — ${attacker.card.name} DESTRUIU ${weakestTarget.card.name}`)
+              } else if (opponentDefenders.length === 0) {
+                dealDamage(atk, 'player')
+                setInstruction(`OPONENTE — ATAQUE DIRETO (${atk} DMG)`)
+              } else {
+                const strongest = opponentDefenders.sort((a, b) => monsterAtk(b.card) - monsterAtk(a.card))[0]
+                if (monsterAtk(strongest.card) > atk) {
+                  setOccupiedZones(prev => {
+                    const next = { ...prev }
+                    delete next[attacker.zoneKey]
+                    return next
+                  })
+                  setOpponentGY(prev => [...prev, attacker.card])
+                  const dmg = monsterAtk(strongest.card) - atk
+                  dealDamage(dmg, 'opponent')
+                  setInstruction(`OPONENTE — ${attacker.card.name} FOI DESTRUÍDO (-${dmg} LP)`)
+                }
+              }
+
+              setFlags(f => ({ ...f, attackedZones: new Set([...f.attackedZones, attacker.zoneKey]) }))
+              await wait(AI_DELAY)
             }
-
-            setFlags(f => ({ ...f, attackedZones: new Set([...f.attackedZones, attacker.zoneKey]) }))
-            await wait(AI_DELAY)
           }
 
           nextPhase()

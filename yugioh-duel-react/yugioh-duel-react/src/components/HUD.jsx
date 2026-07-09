@@ -14,7 +14,8 @@ export default function HUD() {
 
   const prevPlLp = useRef(playerLP)
   const prevOpLp = useRef(opponentLP)
-  const flashRef = useRef(null)
+  const flashOpRef = useRef(null)
+  const flashPlRef = useRef(null)
 
   useEffect(() => {
     if (playerLP !== prevPlLp.current) {
@@ -23,11 +24,12 @@ export default function HUD() {
         el.classList.remove('lp-flash', 'lp-flash-down', 'lp-flash-up')
         void el.offsetWidth
         el.classList.add('lp-flash', playerLP < prevPlLp.current ? 'lp-flash-down' : 'lp-flash-up')
-        clearTimeout(flashRef.current)
-        flashRef.current = setTimeout(() => el.classList.remove('lp-flash', 'lp-flash-down', 'lp-flash-up'), 700)
+        clearTimeout(flashPlRef.current)
+        flashPlRef.current = setTimeout(() => el.classList.remove('lp-flash', 'lp-flash-down', 'lp-flash-up'), 700)
       }
       prevPlLp.current = playerLP
     }
+    return () => clearTimeout(flashPlRef.current)
   }, [playerLP])
 
   useEffect(() => {
@@ -37,11 +39,12 @@ export default function HUD() {
         el.classList.remove('lp-flash', 'lp-flash-down', 'lp-flash-up')
         void el.offsetWidth
         el.classList.add('lp-flash', opponentLP < prevOpLp.current ? 'lp-flash-down' : 'lp-flash-up')
-        clearTimeout(flashRef.current)
-        flashRef.current = setTimeout(() => el.classList.remove('lp-flash', 'lp-flash-down', 'lp-flash-up'), 700)
+        clearTimeout(flashOpRef.current)
+        flashOpRef.current = setTimeout(() => el.classList.remove('lp-flash', 'lp-flash-down', 'lp-flash-up'), 700)
       }
       prevOpLp.current = opponentLP
     }
+    return () => clearTimeout(flashOpRef.current)
   }, [opponentLP])
 
   function handleConcede() {

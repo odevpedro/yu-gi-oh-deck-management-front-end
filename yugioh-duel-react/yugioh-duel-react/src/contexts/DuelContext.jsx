@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, useRef, useEffect, us
 import { mapRemoteDuelState } from '../utils/remoteStateMapper'
 import { fetchSampleDeck } from '../services/cardService'
 import { proxiedUrl } from '../utils/cardHelpers'
+import { screenShake, victoryParticles } from '../utils/fx'
 import { reducer, initialState, PHASES } from './duelReducer'
 
 const DuelContext = createContext(null)
@@ -118,6 +119,7 @@ export function DuelProvider({ children }) {
 
   const dealDamage = useCallback((amount, target = 'opponent') => {
     dispatch({ type: 'DEAL_DAMAGE', amount, target })
+    if (amount >= 2000) screenShake(10, 400)
   }, [])
 
   const initDeck = useCallback(async () => {
@@ -242,6 +244,8 @@ export function DuelProvider({ children }) {
       setGameResult({ isVictory: !playerLost, isDraw: false, playerLP, opponentLP, turn })
       setShowResult(true)
       setInstruction(playerLost ? 'VITORIA DO OPONENTE' : 'VITORIA!')
+      if (!playerLost) victoryParticles(true)
+      else victoryParticles(false)
     }
   }, [playerLP, opponentLP, turn, gameResult, isRemoteDuel])
 

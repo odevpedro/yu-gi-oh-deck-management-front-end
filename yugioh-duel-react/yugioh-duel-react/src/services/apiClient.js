@@ -1,3 +1,5 @@
+import { getAccessToken } from './tokenManager'
+
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
 export class ApiError extends Error {
@@ -10,14 +12,7 @@ export class ApiError extends Error {
 }
 
 function getToken() {
-  try {
-    const raw = localStorage.getItem('auth')
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    return parsed?.token ?? null
-  } catch {
-    return null
-  }
+  return getAccessToken()
 }
 
 export async function apiRequest(path, options = {}) {

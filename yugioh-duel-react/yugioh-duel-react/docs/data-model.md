@@ -1,8 +1,10 @@
 # Data Model — yugioh-duel-react
 
+> Ultima atualizacao: 2026-07-09 — useReducer implementado, chat adicionado, novas animacoes
+
 ## DuelContext (Estado Global)
 
-O estado completo do duelo é gerenciado pelo `DuelProvider` em `src/contexts/DuelContext.jsx` via múltiplos `useState`. Não utiliza `useReducer`.
+O estado completo do duelo é gerenciado pelo `DuelProvider` em `src/contexts/DuelContext.jsx` via `useReducer` (game state) + múltiplos `useState` (UI state).
 
 ### Turn / Phase
 

@@ -11,6 +11,8 @@ import LobbyPage from './pages/LobbyPage'
 import DuelPage from './pages/DuelPage'
 import NotFoundPage from './pages/NotFoundPage'
 import HistoryPage from './pages/HistoryPage'
+import MatchmakingPage from './pages/MatchmakingPage'
+import SideDeckPage from './pages/SideDeckPage'
 
 const pageVariants = {
   initial: { opacity: 0, y: 12, scale: 0.98 },
@@ -49,6 +51,12 @@ function AppRoutes() {
         } />
         <Route path="/duel/local" element={
           <AnimatedPage><ProtectedRoute><DuelPage /></ProtectedRoute></AnimatedPage>
+        } />
+        <Route path="/matchmaking" element={
+          <AnimatedPage><ProtectedRoute><MatchmakingPage /></ProtectedRoute></AnimatedPage>
+        } />
+        <Route path="/side-deck" element={
+          <AnimatedPage><ProtectedRoute><SideDeckPage /></ProtectedRoute></AnimatedPage>
         } />
         <Route path="/history" element={
           <AnimatedPage><ProtectedRoute><HistoryPage /></ProtectedRoute></AnimatedPage>

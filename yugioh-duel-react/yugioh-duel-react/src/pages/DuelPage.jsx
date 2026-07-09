@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react'
+import { useEffect, useCallback, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDuel } from '../contexts/DuelContext'
 import { useAuth } from '../contexts/AuthContext'

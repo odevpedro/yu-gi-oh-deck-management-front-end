@@ -58,18 +58,18 @@ export default function HUD() {
   const plPct = Math.round((playerLP   / 8000) * 100)
 
   return (
-    <header className="hud">
+    <header className="hud" role="banner" aria-label="Status do duelo">
       <div className="hud-left">
-        <button className="hud-concede" type="button" onClick={() => setShowConfirm(true)}>
+        <button className="hud-concede" type="button" onClick={() => setShowConfirm(true)} aria-label="Conceder duelo">
           CONCEDER
         </button>
       </div>
 
       {/* Opponent */}
-      <div className="player-info">
-        <div className="avatar">&#9876;</div>
+      <div className="player-info" role="status" aria-label={`Oponente: ${opponentLP} Life Points`}>
+        <div className="avatar" aria-hidden="true">&#9876;</div>
         <div>
-          <div className="player-name">KAIBA</div>
+          <div className="player-name" aria-label="Oponente">KAIBA</div>
           <div className="lp-wrap">
             <div className="lp-label">LIFE POINTS</div>
             <div className="lp-bar" id="opponentLpBar" ref={opBarRef}>
@@ -81,9 +81,9 @@ export default function HUD() {
       </div>
 
       {/* Player */}
-      <div className="player-info">
+      <div className="player-info" role="status" aria-label={`Jogador: ${playerLP} Life Points`}>
         <div className="hud-timer">
-          <div className="hud-timer-label">TURNO {turn}</div>
+          <div className="hud-timer-label" aria-label={`Turno ${turn}`}>TURNO {turn}</div>
           <div className={`hud-timer-value ${turnTimer <= 10 ? 'hud-timer-warn' : ''}`}>{turnTimer}s</div>
         </div>
         <div className="lp-val" id="playerLpVal" ref={plValRef}>{playerLP}</div>
@@ -96,16 +96,16 @@ export default function HUD() {
             </div>
           </div>
         </div>
-        <div className="avatar gold">&#128737;</div>
+        <div className="avatar gold" aria-hidden="true">&#128737;</div>
       </div>
 
       {showConfirm && (
-        <div className="confirm-overlay" onClick={() => setShowConfirm(false)}>
+        <div className="confirm-overlay" onClick={() => setShowConfirm(false)} role="dialog" aria-modal="true" aria-label="Confirmar concessao">
           <div className="confirm-panel" onClick={e => e.stopPropagation()}>
-            <div className="confirm-title">CONCEDER DUELO?</div>
-            <div className="confirm-text">Tem certeza que deseja conceder?</div>
+            <div className="confirm-title" id="confirm-title">CONCEDER DUELO?</div>
+            <div className="confirm-text" id="confirm-desc">Tem certeza que deseja conceder?</div>
             <div className="confirm-actions">
-              <button className="confirm-btn confirm-btn--yes" onClick={handleConcede}>
+              <button className="confirm-btn confirm-btn--yes" onClick={handleConcede} aria-describedby="confirm-desc">
                 CONCEDER
               </button>
               <button className="confirm-btn confirm-btn--no" onClick={() => setShowConfirm(false)}>

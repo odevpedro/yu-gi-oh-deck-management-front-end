@@ -283,6 +283,16 @@ export default function Zone({
       whileHover="hover"
       whileTap="tap"
       animate={isAttacking ? 'attacking' : 'idle'}
+      role="button"
+      tabIndex={0}
+      aria-label={`${side === 'player' ? 'Seu' : 'Oponente'} ${label ?? ZONE_LABELS[type] ?? type} ${zoneKey ?? ''} ${isOccupied ? ` — ${cardData?.card?.name ?? 'carta'} — ${cardData?.faceDown ? 'face-down' : cardData?.position ?? ''}` : 'vazio'}`}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          if (side === 'player') handlePlayerClick(e)
+          else handleOpponentClick(e)
+        }
+      }}
     >
       {/* Label — só quando vazia */}
       {!isOccupied && (

@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { createDuel } from '../services/duelService'
 import { listDecks } from '../services/deckService'
 import LoadingSpinner from '../components/LoadingSpinner'
+import SoundToggle from '../components/SoundToggle'
 
 function toggleTheme() {
   const next = !document.documentElement.classList.contains('light-theme')
@@ -64,7 +65,9 @@ export default function LobbyPage() {
             <strong>{user?.username}</strong>
           </div>
           <button type="button" onClick={() => navigate('/history')}>Historico</button>
+          <button type="button" onClick={() => navigate('/side-deck?duelId=')}>Side Deck</button>
           <button type="button" onClick={toggleTheme}>Tema</button>
+          <SoundToggle />
           <button type="button" onClick={logout}>Logout</button>
         </header>
 
@@ -104,6 +107,9 @@ export default function LobbyPage() {
           <div className="lobby-actions">
             <button className="auth-submit" type="submit" disabled={loading}>
               {loading ? 'Criando...' : 'Criar duelo'}
+            </button>
+            <button className="auth-submit" type="button" onClick={() => navigate('/matchmaking')} style={{ marginTop: 8 }}>
+              Matchmaking
             </button>
             <button className="ghost-button" type="button" onClick={() => navigate('/duel/local')}>
               Duelo local

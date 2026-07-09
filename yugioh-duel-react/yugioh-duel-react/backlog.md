@@ -2,24 +2,14 @@
 
 ## Pendentes
 
-- [ ] **TEST-001** — Bateria unitária de componentes principais
-- [ ] **TEST-002** — Testes de contrato front-core
 - [ ] **TEST-003** — Testes integrados com core real via JNI/ocgcore
-- [ ] **TEST-004** — E2E com Playwright/Cypress
-- [ ] **TEST-005** — Testes visuais/regressão
+- [ ] **TEST-004** — E2E com Playwright/Cypress: login, lobby, duelo local, duelo remoto (Playwright instalado, testes básicos criados, pendentes de execução com servidor rodando)
 - [ ] **TEST-006** — Replay/golden tests determinísticos
 - [ ] **TEST-007** — Testes de privacidade/fair play
 - [ ] **TEST-008** — Testes de erro e resiliência
 - [ ] **TEST-009** — Testes de performance e escala
-- [ ] **TEST-010** — Testes de acessibilidade e UX
+- [ ] **TEST-010** — Testes de acessibilidade e UX (ARIA labels adicionados, pendente teste e2e de leitor de tela)
 - [ ] **TEST-011** — Fixtures controladas obrigatórias
-- [ ] **WEB-023** — E2E com Cypress/Playwright
-- [ ] **WEB-006b** — Matchmaking: ver jogadores próximos e desafiar via community-service
-- [ ] **WEB-017** — Side deck screen entre matches (melhor-de-3)
-- [ ] **WEB-027** — Cache local de cartas (IndexedDB/lokijs)
-- [ ] **WEB-028** — Service Worker offline
-- [ ] **UX-001** — Efeitos sonoros (Howler.js ou HTML5 Audio)
-- [ ] **QLT-007** — Acessibilidade ARIA e navegação por teclado
 
 ## Em andamento
 
@@ -27,6 +17,14 @@
 
 ## Concluídas
 
+- [x] **TEST-001** — Testes unitários de componentes: Zone, HUD, PlayerHand, ResultScreen, DuelChat, DuelField (30 testes) + actionResolver (17) + cardHelpers (11) = 58 testes Vitest
+- [x] **TEST-002** — Playwright E2E config: playwright.config.js + 3 spec files (login, local-duel, visual)
+- [x] **UX-001** — Efeitos sonoros: Howler.js integrado, sound.js com 14 sons, SoundToggle componente, arquivos .mp3 em public/sounds/
+- [x] **WEB-006b** — Matchmaking: MatchmakingPage.jsx com busca de oponente, timer, cancelamento
+- [x] **WEB-017** — Side deck screen: SideDeckPage.jsx com seleção de 5 cartas do side deck
+- [x] **WEB-027** — Cache local IndexedDB: cacheService.js com card-cache e deck-cache (24h / 5min TTL)
+- [x] **WEB-028** — Service Worker offline: public/sw.js com precache + fetch handler + registro no index.html
+- [x] **QLT-007** — Acessibilidade: ARIA roles/labels em Zone, HUD, ResultScreen, DuelChat, tabIndex + keyboard handlers em Zone, autoFocus no ResultScreen
 - [x] **WEB-022** — Variáveis .env + .env.example: todas as URLs movidas para env vars, authService refatorado para usar apiClient + gateway
 - [x] **WEB-022b** — Token storage consolidado: apiClient agora usa tokenManager (localStorage unificado)
 - [x] **WEB-023** — Chat entre jogadores via STOMP: DuelChat componente + subscription /topic/duel/{id}/chat
@@ -39,9 +37,7 @@
 - [x] **GAME-001b** — IA melhorada: defesa priority (set face-down se oponente tem atacantes), divisão atk/def por prioridade, cálculo de dano correto
 - [x] **QLT-005** — Cleanup de timers: Zone.jsx com cleanupFns, HUD com flashRef separados por player, clearTimeout nos returns
 
-> Nenhuma feature em andamento.
-
-## Concluídas
+---
 
 - [x] **QLT-001** — ErrorBoundary: classe React envolvendo a aplicação (src/components/ErrorBoundary.jsx)
 - [x] **QLT-002** — apiClient.js: fetch wrapper com autenticação, timeout (15s) e tratamento de erros (src/services/apiClient.js)

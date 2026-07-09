@@ -2,10 +2,12 @@
 // Zone.jsx — 100% declarativo, sem escrita imperativa no DOM
 // ═══════════════════════════════════════════════════════════
 import { useRef, useEffect, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useDuel }         from '../contexts/DuelContext'
 import { engine }           from '../engine'
 import { logger }           from '../utils/logger'
 import { isExtraType, imageToDataURL, proxiedUrl } from '../utils/cardHelpers'
+import { zoneVariants, emptyZoneVariants, sendToGYVariants, sendToBanishedVariants, specialSummonVariants, attackVariants } from '../utils/animations'
 import {
   normalSummonFX, specialSummonFX, spellActivationFX,
   sobelEdgeGlow, lpDamageFX as lpDamageFXUtil,
@@ -46,6 +48,8 @@ export default function Zone({
     selectedCard, selectCard,
     activeAction, clearSelection,
     playerGY, opponentGY,
+    isRemoteDuel, sendRemoteAttackTarget, sendRemoteCardToZone,
+    pendingSummon, addTribute, cancelPendingSummon,
   } = useDuel()
 
   const zoneRef    = useRef(null)
@@ -148,18 +152,38 @@ export default function Zone({
     if (!dragState.active || !isValidDrop) return
     const { fromIndex, card } = dragState
     endDrag()
+
+    if (isRemoteDuel) {
+      sendRemoteCardToZone(card, zoneKey, activeAction)
+      clearSelection()
+      return
+    }
+
     await commitCard(card, fromIndex, activeAction)
     clearSelection()
     setInstruction('SELECIONE UMA CARTA PARA CONTINUAR')
-  }, [dragState, isValidDrop, endDrag, commitCard, clearSelection, setInstruction])
+  }, [dragState, isValidDrop, endDrag, isRemoteDuel, sendRemoteCardToZone, zoneKey, activeAction, commitCard, clearSelection, setInstruction])
 
   // ── click: zona alvo (action bar) ou seleção de campo ─
   const handlePlayerClick = useCallback(async (e) => {
     e.stopPropagation()
 
+    // 0. Tribute selection mode
+    if (pendingSummon && isOccupied && type === 'monster' && zoneKey?.startsWith('pm')) {
+      addTribute(zoneKey)
+      return
+    }
+
     // 1. Zona alvo de uma ação pendente
     if (isValidDrop && actionPending && selectedCard) {
       const { card, index: fromIndex } = selectedCard
+
+      if (isRemoteDuel) {
+        sendRemoteCardToZone(card, zoneKey, activeAction)
+        clearSelection()
+        return
+      }
+
       await commitCard(card, fromIndex ?? null, activeAction)
       clearSelection()
       setInstruction('CARD PLAYED')
@@ -189,6 +213,7 @@ export default function Zone({
   }, [
     isValidDrop, actionPending, selectedCard,
     isOccupied, type, occupiedZones, zoneKey,
+    isRemoteDuel, sendRemoteCardToZone, activeAction,
     commitCard, clearSelection, selectCard, updatePanel, setInstruction,
   ])
 
@@ -198,6 +223,11 @@ export default function Zone({
     if (!attackingZone) { logger.attack('Aborted — no attackingZone'); return }
     e.stopPropagation()
 
+    if (isRemoteDuel) {
+      sendRemoteAttackTarget(attackingZone, zoneKey || null)
+      return
+    }
+
     const gameState = { occupiedZones }
     const mutations = {
       setOccupiedZones,
@@ -206,7 +236,7 @@ export default function Zone({
     }
 
     engine.handleAttackTarget(attackingZone, zoneKey || null, gameState, mutations)
-  }, [attackingZone, occupiedZones, zoneKey, setAttackingZone, dealDamage, sendToGraveyard, setInstruction])
+  }, [attackingZone, occupiedZones, zoneKey, side, isRemoteDuel, sendRemoteAttackTarget, setAttackingZone, dealDamage, sendToGraveyard, setInstruction])
 
   // ── Classes ───────────────────────────────────────────
   const classes = [
@@ -230,8 +260,11 @@ export default function Zone({
     return () => clearTimeout(tid)
   }, [cardId, isOccupied]) // eslint-disable-line
 
+  const isExtraSummon = isOccupied && !cardData?.faceDown && isExtraType(cardData?.card?.type)
+  const isAttacking = !!attackingZone && attackingZone === zoneKey
+
   return (
-    <div
+    <motion.div
       ref={zoneRef}
       className={classes}
       data-zone={dataZone}
@@ -240,10 +273,21 @@ export default function Zone({
       onMouseUp={handleMouseUp}
       onClick={side === 'player' ? handlePlayerClick : handleOpponentClick}
       style={{ position: 'relative', overflow: 'visible' }}
+      variants={{ ...zoneVariants, ...attackVariants }}
+      whileHover="hover"
+      whileTap="tap"
+      animate={isAttacking ? 'attacking' : 'idle'}
     >
       {/* Label — só quando vazia */}
       {!isOccupied && (
-        <div className="zone-label">{label ?? ZONE_LABELS[type] ?? type.toUpperCase()}</div>
+        <motion.div
+          className="zone-label"
+          variants={emptyZoneVariants}
+          initial="initial"
+          animate="animate"
+        >
+          {label ?? ZONE_LABELS[type] ?? type.toUpperCase()}
+        </motion.div>
       )}
 
       {/* GY count badge */}
@@ -270,56 +314,73 @@ export default function Zone({
         )
       })()}
 
-      {/* Carta face-down (Set) — mostra verso, rotacionada se monstro */}
-      {isOccupied && cardData?.faceDown && (
-        <img
-          src="/card-back.png"
-          alt="Face Down"
-          style={{
-            position: 'absolute', inset: 0,
-            width: '100%', height: '100%',
-            objectFit: 'cover', borderRadius: '3px',
-            zIndex: 1, pointerEvents: 'none',
-            filter: 'brightness(.85)',
-            transform: cardData.position === 'defense' ? 'rotate(90deg) scaleX(.82)' : 'none',
-          }}
-        />
-      )}
+      <AnimatePresence mode="wait">
+        {isOccupied && (
+          <motion.div
+            key={cardData.card?.id ?? 'card'}
+            style={{ position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none' }}
+            variants={
+              isExtraSummon ? specialSummonVariants :
+              type === 'gy' ? sendToGYVariants :
+              type === 'banished' ? sendToBanishedVariants :
+              undefined
+            }
+            initial="initial"
+            animate="animate"
+          >
+            {/* Carta face-down (Set) */}
+            {cardData?.faceDown && (
+              <img
+                src="/card-back.png"
+                alt="Face Down"
+                style={{
+                  width: '100%', height: '100%',
+                  objectFit: 'cover', borderRadius: '3px',
+                  filter: 'brightness(.85)',
+                  transform: cardData.position === 'defense' ? 'rotate(90deg) scaleX(.82)' : 'none',
+                }}
+              />
+            )}
 
-      {/* Carta face-up — mostra arte */}
-      {isOccupied && !cardData?.faceDown && (
-        cardData?.dataUrl
-          ? <img
-              src={cardData.dataUrl}
-              alt={cardData.card?.name ?? ''}
-              style={{
-                position: 'absolute',
-                width:  cardData.position === 'defense' ? '100%' : '100%',
-                height: cardData.position === 'defense' ? '100%' : '100%',
-                objectFit: 'cover', objectPosition: 'top center',
-                borderRadius: '3px', zIndex: 1, pointerEvents: 'none',
-                inset: 0,
-                transform: cardData.position === 'defense' ? 'rotate(90deg) scaleX(.82)' : 'none',
-                transition: 'transform .28s cubic-bezier(.23,1,.32,1)',
-              }}
-            />
-          : <div style={{
-              position: 'absolute', inset: 0, zIndex: 1,
-              display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center',
-              background: 'linear-gradient(145deg, #0e1828, #090f1e)',
-              borderRadius: '3px', padding: '6px', pointerEvents: 'none',
-            }}>
-              <span style={{ fontSize: '1.6rem', lineHeight: 1 }}>🃏</span>
-              <span style={{
-                fontFamily: 'Orbitron, monospace', fontSize: '.28rem',
-                color: 'rgba(160,200,255,.55)', textAlign: 'center',
-                marginTop: 5, lineHeight: 1.4,
-              }}>
-                {cardData?.card?.name ?? ''}
-              </span>
-            </div>
-      )}
+            {/* Carta face-up */}
+            {!cardData?.faceDown && (
+              cardData?.dataUrl
+                ? <img
+                    src={cardData.dataUrl}
+                    alt={cardData.card?.name ?? ''}
+                    style={{
+                      width: '100%', height: '100%',
+                      objectFit: 'cover', objectPosition: 'top center',
+                      borderRadius: '3px',
+                      transform: cardData.position === 'defense' ? 'rotate(90deg) scaleX(.82)' : 'none',
+                      transition: 'transform .28s cubic-bezier(.23,1,.32,1)',
+                    }}
+                    onError={(e) => {
+                      if (e.currentTarget.dataset.fallbackApplied) return
+                      e.currentTarget.dataset.fallbackApplied = '1'
+                      e.currentTarget.src = '/card-back.png'
+                    }}
+                  />
+                : <div style={{
+                    width: '100%', height: '100%',
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center',
+                    background: 'linear-gradient(145deg, #0e1828, #090f1e)',
+                    borderRadius: '3px', padding: '6px',
+                  }}>
+                    <span style={{ fontSize: '1.6rem', lineHeight: 1 }}>🃏</span>
+                    <span style={{
+                      fontFamily: 'Orbitron, monospace', fontSize: '.28rem',
+                      color: 'rgba(160,200,255,.55)', textAlign: 'center',
+                      marginTop: 5, lineHeight: 1.4,
+                    }}>
+                      {cardData?.card?.name ?? ''}
+                    </span>
+                  </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── ATK/DEF badges (monstro face-up) ── */}
       {isOccupied && !cardData?.faceDown && type === 'monster' && (
@@ -394,6 +455,6 @@ export default function Zone({
           }}>SET</span>
         </div>
       )}
-    </div>
+    </motion.div>
   )
 }

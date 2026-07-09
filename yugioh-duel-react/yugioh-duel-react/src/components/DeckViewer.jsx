@@ -53,7 +53,16 @@ export default function DeckViewer() {
                 title={c.name}
               >
                 {imgUrl
-                  ? <img src={imgUrl} alt={c.name} loading="lazy" />
+                  ? <img
+                      src={imgUrl}
+                      alt={c.name}
+                      loading="lazy"
+                      onError={(e) => {
+                        if (e.currentTarget.dataset.fallbackApplied) return
+                        e.currentTarget.dataset.fallbackApplied = '1'
+                        e.currentTarget.src = '/card-back.png'
+                      }}
+                    />
                   : <div className="dv-card-placeholder">{c.name}</div>
                 }
               </div>

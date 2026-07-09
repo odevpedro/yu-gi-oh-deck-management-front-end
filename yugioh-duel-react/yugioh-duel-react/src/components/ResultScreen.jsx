@@ -1,8 +1,8 @@
 import { useDuel } from '../contexts/DuelContext'
 import { useEffect, useState } from 'react'
 
-export default function ResultScreen() {
-  const { gameResult, setShowResult, showResult, playerLP, opponentLP, turn } = useDuel()
+export default function ResultScreen({ onBack }) {
+  const { gameResult, showResult, playerLP, opponentLP, turn } = useDuel()
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
@@ -16,6 +16,11 @@ export default function ResultScreen() {
   const isVictory = gameResult.isDraw ? null : gameResult.isVictory
   const title = gameResult.isDraw ? 'EMPATE' : isVictory ? 'VITORIA' : 'DERROTA'
   const titleClass = gameResult.isDraw ? 'result--draw' : isVictory ? 'result--win' : 'result--lose'
+
+  function handleBack() {
+    setVisible(false)
+    onBack?.()
+  }
 
   return (
     <div className={`result-overlay ${titleClass}`} onClick={() => setVisible(false)}>
@@ -37,7 +42,7 @@ export default function ResultScreen() {
           </div>
         </div>
         <div className="result-actions">
-          <button className="result-btn result-btn--primary" onClick={() => window.location.reload()}>
+          <button className="result-btn result-btn--primary" onClick={handleBack}>
             VOLTAR AO LOBBY
           </button>
         </div>

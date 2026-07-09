@@ -9,6 +9,14 @@ const ACTION_DEFS = {
     id: 'normal-summon', label: 'Summon',
     icon: '▲', color: 'gold', group: 'summon',
   },
+  'tribute-summon': {
+    id: 'tribute-summon', label: 'Tribute Summon',
+    icon: '⛰', color: 'orange', group: 'summon',
+  },
+  'special-summon': {
+    id: 'special-summon', label: 'Special Summon',
+    icon: '✦', color: 'purple', group: 'summon',
+  },
   'set-monster': {
     id: 'set-monster', label: 'Set',
     icon: '▼', color: 'blue', group: 'summon',
@@ -81,8 +89,9 @@ function make(id, available, reason = null) {
  * @param {object} phase          { id, label }
  * @param {object} flags          { normalSummonedThisTurn, positionChangedThisTurn, attackedZones: Set }
  * @param {object} occupiedZones  { [zoneKey]: { card, dataUrl, position, faceDown, summonedThisTurn } }
+ * @param {number} turn           current turn number (1-indexed)
  */
-export function resolveActions(selected, phase, flags, occupiedZones) {
+export function resolveActions(selected, phase, flags, occupiedZones, turn) {
   if (!selected) return []
   const { card, location, zoneKey } = selected
   const phaseId  = phase.id
@@ -100,16 +109,30 @@ export function resolveActions(selected, phase, flags, occupiedZones) {
     const hasZone = freeMonsterZones(occupiedZones) > 0
 
     if (isExtra) {
-      actions.push(make('normal-summon', false, 'Requires Special Summon conditions'))
-      actions.push(make('set-monster',   false, 'Extra Deck monsters cannot be Set'))
+      const extraReason = !inMain ? `Only during Main Phase (current: ${phase.label})` :
+                          !hasZone ? 'No available Monster Zone' : null
+      actions.push(make('special-summon', !extraReason, extraReason))
     } else {
+      const level = card.level ?? 0
+      const needsTribute = level >= 5
+      const playerMonsters = Object.keys(occupiedZones).filter(k => k.startsWith('pm')).length
+      const tributeOk = !needsTribute || playerMonsters >= (level >= 7 ? 2 : 1)
+
       const noSummonReason =
         !inMain                      ? `Only during Main Phase (current: ${phase.label})` :
         flags.normalSummonedThisTurn ? 'Normal Summon/Set already used this turn' :
-        !hasZone                     ? 'No available Monster Zone' : null
+        !hasZone                     ? 'No available Monster Zone' :
+        needsTribute && !tributeOk   ? `Need ${level >= 7 ? 2 : 1} tribute(s) (have ${playerMonsters} monster(s))` : null
 
-      actions.push(make('normal-summon', !noSummonReason, noSummonReason))
+      if (needsTribute && tributeOk) {
+        actions.push(make('tribute-summon', !noSummonReason, noSummonReason))
+      } else {
+        actions.push(make('normal-summon', !noSummonReason, noSummonReason))
+      }
       actions.push(make('set-monster',   !noSummonReason, noSummonReason))
+      if (needsTribute) {
+        actions.push(make('normal-summon', false, 'Level 5+ requires tribute'))
+      }
     }
   }
 
@@ -158,14 +181,18 @@ export function resolveActions(selected, phase, flags, occupiedZones) {
     const hasAttacked    = flags.attackedZones?.has(zoneKey)
     const setThisTurn    = cardData?.summonedThisTurn === true && isFaceDown
 
+    const turnOneAttack = turn === 1
+    const opponentHasMonsters = Object.keys(occupiedZones).some(k => k.startsWith('om') && occupiedZones[k])
+    const canDirectAttack = !opponentHasMonsters
+
     // Attack — face-down monsters cannot attack
-    actions.push(make(
-      'attack',
-      inBattle && !hasAttacked && !isFaceDown,
-      isFaceDown   ? 'Face-down monsters cannot attack' :
-      !inBattle    ? `Attack only during Battle Phase (current: ${phase.label})` :
-      hasAttacked  ? 'This monster already attacked this turn' : null
-    ))
+    let attackReason = null
+    if (isFaceDown)        attackReason = 'Face-down monsters cannot attack'
+    else if (turnOneAttack) attackReason = 'Cannot attack on the first turn'
+    else if (!inBattle)    attackReason = `Attack only during Battle Phase (current: ${phase.label})`
+    else if (hasAttacked)  attackReason = 'This monster already attacked this turn'
+
+    actions.push(make('attack', !attackReason, attackReason))
 
     // Flip Summon — only face-down monsters can be Flip Summoned, during Main Phase
     if (isFaceDown) {

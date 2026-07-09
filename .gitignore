@@ -1,0 +1,5 @@
+node_modules/
+dist/
+
+yugioh-duel-react/yugioh-duel-react/node_modules/
+yugioh-duel-react/yugioh-duel-react/dist/

@@ -2,9 +2,11 @@
 // PlayerHand.jsx — Mão do jogador (leque fixo na viewport)
 // ═══════════════════════════════════════════════════════════
 import { useState, useCallback, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useDuel }   from '../contexts/DuelContext'
 import CardWrap      from './CardWrap'
 import { cardType }  from '../utils/cardHelpers'
+import { handCardVariants } from '../utils/animations'
 
 export default function PlayerHand() {
   const { handCards } = useDuel()
@@ -62,19 +64,30 @@ export default function PlayerHand() {
 
   return (
     <div className="hand" id="playerHand">
-      {handCards.map((card, i) => (
-        <CardWrap
-          key={card.id ?? i}
-          card={card}
-          index={i}
-          total={handCards.length}
-          hovered={hovered}
-          selected={selected}
-          onHover={onHover}
-          onLeave={onLeave}
-          onSelect={onSelect}
-        />
-      ))}
+      <AnimatePresence mode="popLayout">
+        {handCards.map((card, i) => (
+          <motion.div
+            key={card.id ?? i}
+            layout
+            variants={handCardVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            style={{ display: 'inline-flex' }}
+          >
+            <CardWrap
+              card={card}
+              index={i}
+              total={handCards.length}
+              hovered={hovered}
+              selected={selected}
+              onHover={onHover}
+              onLeave={onLeave}
+              onSelect={onSelect}
+            />
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </div>
   )
 }

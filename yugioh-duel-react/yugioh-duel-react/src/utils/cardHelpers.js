@@ -40,7 +40,7 @@ export function cardCondition(card) {
 export function proxiedUrl(rawUrl) {
   if (!rawUrl) return ''
   if (rawUrl.startsWith('data:') || rawUrl.startsWith('blob:')) return rawUrl
-  return `https://corsproxy.io/?url=${encodeURIComponent(rawUrl)}`
+  return rawUrl
 }
 
 // ── Image → data URL (for canvas / FX) ───────────────────

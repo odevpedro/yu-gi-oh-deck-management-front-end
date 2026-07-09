@@ -23,7 +23,7 @@ export default function ActionBar() {
   const {
     selectedCard, clearSelection,
     phase, occupiedZones,
-    flags, executeAction,
+    flags, executeAction, turn,
     updatePanel,
   } = useDuel()
 
@@ -31,7 +31,7 @@ export default function ActionBar() {
   const barRef  = useRef(null)
 
   const actions = selectedCard
-    ? resolveActions(selectedCard, phase, flags, occupiedZones)
+    ? resolveActions(selectedCard, phase, flags, occupiedZones, turn)
     : []
 
   const visible = !!selectedCard

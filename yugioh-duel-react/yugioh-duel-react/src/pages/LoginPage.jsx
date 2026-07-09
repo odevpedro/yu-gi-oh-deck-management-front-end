@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function LoginPage() {
   const { login, register, startLocalSession } = useAuth()
+  const navigate = useNavigate()
   const [mode, setMode] = useState('login')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
@@ -75,7 +77,7 @@ export default function LoginPage() {
           <button className="auth-submit" type="submit" disabled={loading}>
             {loading ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Registrar'}
           </button>
-          <button className="ghost-button" type="button" onClick={startLocalSession}>
+          <button className="ghost-button" type="button" onClick={() => { startLocalSession(); navigate('/lobby') }}>
             Modo local
           </button>
         </form>

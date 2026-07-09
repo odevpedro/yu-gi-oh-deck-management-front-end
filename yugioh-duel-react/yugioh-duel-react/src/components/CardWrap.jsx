@@ -25,6 +25,7 @@ export default function CardWrap({ card, index, total, hovered, selected, onHove
   const t       = cardType(card?.type || 'MONSTER')
   const rawImg  = card?.card_images?.[0]?.image_url ?? card?.url ?? ''
   const img     = proxiedUrl(rawImg)
+  const fallbackImg = '/card-back.png'
   const fan     = `rotate(${a}deg) translateY(${oy}px)`
 
   // ── Compute transform from state ──────────────────────
@@ -189,7 +190,16 @@ export default function CardWrap({ card, index, total, hovered, selected, onHove
       <div className="card" ref={cardRef}>
         <div className="art">
           {img && (
-            <img src={img} alt="" loading="lazy" crossOrigin="anonymous" />
+            <img
+              src={img}
+              alt=""
+              loading="lazy"
+              onError={(e) => {
+                if (e.currentTarget.dataset.fallbackApplied) return
+                e.currentTarget.dataset.fallbackApplied = '1'
+                e.currentTarget.src = fallbackImg
+              }}
+            />
           )}
           <div className="sparkles" />
         </div>

@@ -219,3 +219,99 @@
   outline-offset: 2px;
   box-shadow: 0 0 14px rgba(184,115,51,.22) !important;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Card Detail Modal
+   ═══════════════════════════════════════════════════════════ */
+.cdm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2,4,10,.85);
+  backdrop-filter: blur(4px);
+}
+.cdm-panel {
+  background: linear-gradient(145deg, #0f1828, #0a1020);
+  border: 2px solid var(--b-panel);
+  border-radius: 10px;
+  max-width: 520px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 0 40px rgba(0,0,0,.8), 0 0 80px rgba(20,40,80,.3);
+}
+.cdm-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: none;
+  border: none;
+  color: rgba(160,180,220,.5);
+  font-size: 1.2rem;
+  cursor: pointer;
+  z-index: 2;
+  line-height: 1;
+}
+.cdm-close:hover { color: var(--c-white); }
+.cdm-body {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+}
+.cdm-art-wrap {
+  flex-shrink: 0;
+  width: 180px;
+}
+.cdm-art {
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid var(--b-dim);
+}
+.cdm-info {
+  flex: 1;
+  min-width: 0;
+}
+.cdm-name {
+  font-family: 'Orbitron', monospace;
+  font-size: .7rem;
+  font-weight: 700;
+  color: var(--c-gold-lt);
+  letter-spacing: .04em;
+  margin-bottom: 4px;
+}
+.cdm-type {
+  font-size: .65rem;
+  color: rgba(160,180,220,.6);
+  margin-bottom: 8px;
+}
+.cdm-level {
+  font-size: .6rem;
+  color: var(--c-gold);
+  margin-bottom: 8px;
+  letter-spacing: .03em;
+}
+.cdm-level span { color: rgba(160,180,220,.5); }
+.cdm-stats {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.cdm-stat {
+  font-family: 'Orbitron', monospace;
+  font-size: .6rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 3px;
+}
+.cdm-stat--atk { color: var(--c-red-lt); background: rgba(200,30,30,.12); border: 1px solid rgba(200,30,30,.25); }
+.cdm-stat--def { color: var(--c-blue-lt); background: rgba(30,100,200,.12); border: 1px solid rgba(30,100,200,.25); }
+.cdm-desc {
+  font-size: .7rem;
+  line-height: 1.6;
+  color: rgba(180,200,230,.8);
+  white-space: pre-wrap;
+}

@@ -18,6 +18,10 @@
 - [Feature: Compra de Carta (Draw Phase)](#feature-compra-de-carta-draw-phase)
 - [Feature: Painel de Contexto](#feature-painel-de-contexto)
 - [Feature: Efeitos Visuais Canvas (FX)](#feature-efeitos-visuais-canvas-fx)
+- [Feature: Roteamento SPA (react-router-dom)](#feature-roteamento-spa-react-router-dom)
+- [Feature: Lobby com Listagem de Decks](#feature-lobby-com-listagem-de-decks)
+- [Feature: Selecao de Deck](#feature-selecao-de-deck)
+- [Feature: IA de Oponente (Modo Local)](#feature-ia-de-oponente-modo-local)
 
 ---
 
@@ -57,6 +61,7 @@ Evento do usuario (click, drag, hover)
 - **Engine** valida regras antes de qualquer mutacao de estado
 - **FX** sao disparados apos mutacao de estado, nunca antes
 - **Dev-only**: `DebugPanel` e `logger.js` sao excluidos automaticamente em producao via `import.meta.env.DEV`
+- **Roteamento**: navegacao gerenciada por react-router-dom, nao por estado de componente
 
 ---
 
@@ -636,3 +641,432 @@ Algoritmo:
 4. Usa a cor desse pixel como cor base das particulas
 
 Resultado: cada monstro tem particulas na cor predominante de sua arte, sem configuracao manual.
+
+---
+
+# Feature: Roteamento SPA (react-router-dom)
+
+> **Versao:** 0.4.0
+> **Implementada em:** 2026-07-07
+> **Status:** Concluida
+
+---
+
+## Resumo
+
+A navegacao entre telas (login, lobby, duelo) era feita por estado no componente raiz (`AppContent`). A feature migra para react-router-dom com rotas declarativas, eliminando a logica de `session === null / undefined / objeto`.
+
+**Motivacao:** Estado de sessao nao e responsabilidade do roteador. Rotas declarativas permitem navegacao direta, URLs compartilhaveis e guardas de autenticacao.
+**Resultado:** Navegacao via `<Link>` e `useNavigate()`. Rota `/duel/local` para modo local. Guarda `ProtectedRoute` para paginas autenticadas.
+
+---
+
+## Arquitetura
+
+### Arvore de Providers
+
+```
+<AuthProvider>
+  <ToastProvider>
+    <BrowserRouter>
+      <DuelProvider>
+        <Routes>
+          <Route path="/" element={<ProtectedRoute requireAuth={false}><LoginPage /></ProtectedRoute>} />
+          <Route path="/lobby" element={<ProtectedRoute><LobbyPage /></ProtectedRoute>} />
+          <Route path="/duel/:duelId" element={<ProtectedRoute><DuelPage /></ProtectedRoute>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </DuelProvider>
+    </BrowserRouter>
+  </ToastProvider>
+</AuthProvider>
+```
+
+### ProtectedRoute
+
+**Arquivo:** `src/components/ProtectedRoute.jsx`
+
+- `requireAuth=true` (padrao): redireciona para `/` se `user === null`
+- `requireAuth=false`: redireciona para `/lobby` se `user !== null`
+- Exibe "Carregando..." enquanto `loading === true`
+
+### Paginas
+
+| Rota | Componente | Descricao |
+|------|-----------|-----------|
+| `/` | LoginPage | Login/registro + botao "Modo local" |
+| `/lobby` | LobbyPage | Criar duelo remoto com deck selector |
+| `/duel/:duelId` | DuelPage | Duelo remoto (WebSocket) |
+| `/duel/local` | DuelPage | Duelo local (YGOProDeck API) |
+
+---
+
+## Fluxo de Navegacao
+
+### Login → Lobby
+
+```
+Usuario faz login
+  → AuthContext.setUser(data)
+  → ProtectedRoute detecta user !== null
+  → Redirect para /lobby
+```
+
+### Login → Duelo Local
+
+```
+Usuario clica "Modo local"
+  → startLocalSession()  (seta user LOCAL)
+  → navigate('/duel/local')
+  → DuelPage monta com isLocal = true
+  → initDeck() + fetch 7 cartas da API
+```
+
+### Lobby → Duelo Remoto
+
+```
+Usuario seleciona deck + preenche Player B
+  → createDuel(duelService)
+  → navigate('/duel/' + duelId)
+  → DuelPage monta com isLocal = false
+  → GET /state + STOMP connect
+```
+
+### Fim de Duelo → Lobby
+
+```
+ResultScreen exibe resultado
+  → Usuario clica "Voltar ao Lobby"
+  → navigate('/lobby')
+  → DuelPage desmonta (cleanup: client.deactivate())
+  → resetDuel() limpa DuelContext
+```
+
+---
+
+## Decisoes Tecnicas
+
+### ADR-003 — react-router-dom v7
+
+| Campo | Detalhe |
+|-------|---------|
+| **Status** | Aceita |
+| **Data** | 2026-07-07 |
+| **Contexto** | Navegacao anterior por estado em AppContent; necessidade de URLs semanticas |
+| **Decisao** | Usar react-router-dom v7 com BrowserRouter |
+| **Consequencias** | Rotas declarativas, navegacao programatica via hooks, facilidade para adicionar lazy loading |
+
+### ADR-004 — DuelProvider dentro do Router
+
+| Campo | Detalhe |
+|-------|---------|
+| **Status** | Aceita |
+| **Data** | 2026-07-07 |
+| **Contexto** | DuelContext contem estado do duelo; precisa persistir entre paginas |
+| **Decisao** | DuelProvider dentro de BrowserRouter mas fora de Routes |
+| **Consequencias** | `resetDuel()` necessario ao trocar de duelo; estado nao e recriado ao navegar entre rotas filhas |
+
+---
+
+# Feature: Lobby com Listagem de Decks
+
+> **Versao:** 0.3.0
+> **Implementada em:** 2026-07-07
+> **Status:** Concluida
+
+---
+
+## Resumo
+
+Apos o login, o usuario e redirecionado ao lobby onde pode criar duelos. O lobby consome o deck-service para listar os decks do usuario autenticado e os exibe em um seletor.
+
+**Motivacao:** Usuario precisa escolher qual deck usar antes de criar um duelo. Sem backend de decks, so era possivel usar deck padrao.
+**Resultado:** Lobby com seletor de decks, opcao de deck demo (fallback) e criacao de duelo com deckId.
+
+---
+
+## Fluxo Principal
+
+### 1. Carregamento de Decks
+
+- **Arquivo:** `src/pages/LobbyPage.jsx` — `useEffect` no mount
+- **Servico:** `src/services/deckService.js` — `listDecks()`
+
+```
+LobbyPage monta
+  → Se user.role === 'LOCAL': pula carregamento (nao ha decks locais)
+  → Se user autenticado: listDecks()
+    → GET http://localhost:8081/decks (com Bearer token)
+    → Resposta: [{ id, name, mainDeckSize, extraDeckSize, ... }]
+    → setDecks(data)
+    → Se data.length > 0: seleciona primeiro deck como padrao
+  → Se erro (rede/404): fallback silencioso (decks = []), exibe "Nenhum deck disponivel"
+```
+
+### 2. Seletor de Deck
+
+```
+<select>
+  <option value="">Deck padrao (demo)</option>
+  {decks.map(d => (
+    <option value={d.id}>{d.name} ({d.mainDeckSize}/{d.extraDeckSize})</option>
+  ))}
+</select>
+```
+
+### 3. Criacao de Duelo
+
+```
+submit()
+  → createDuel({
+      playerAId: user.id,
+      playerBId,
+      playerADeckId: selectedDeck || null,
+      playerBDeckId: null,
+    })
+  → POST http://localhost:8084/api/duels
+  → navigate('/duel/' + duel.duelId)
+```
+
+### 4. Fallback (deck-service offline)
+
+Se `listDecks()` falhar (qualquer erro de rede):
+- `decks` permanece `[]`
+- Usuario ve "Nenhum deck disponivel" no select
+- Cria duelo com `playerADeckId: null`
+- Backend (duel-service) usa deck demo se `duel.demo-deck.enabled=true`
+
+---
+
+## Arquivos Envolvidos
+
+| Arquivo | Responsabilidade |
+|---------|-----------------|
+| `src/services/deckService.js` | Cliente HTTP para deck-service (:8081) |
+| `src/pages/LobbyPage.jsx` | UI do lobby + estado de carregamento |
+| `src/services/duelService.js` | `createDuel()` aceita playerADeckId |
+
+---
+
+# Feature: Selecao de Deck
+
+> **Versao:** 0.3.0
+> **Implementada em:** 2026-07-07
+> **Status:** Concluida
+
+---
+
+## Resumo
+
+Componente de selecao de deck integrado ao lobby. Permite escolher entre decks cadastrados no deck-service ou usar o deck demo padrao do backend.
+
+**Motivacao:** Vincular a escolha de deck do usuario ao fluxo de criacao de duelo, transmitindo o `deckId` para o duel-service.
+**Resultado:** Select dropdown funcional com fallback e indicacao de carregamento.
+
+---
+
+## Fluxo
+
+### deckService.js
+
+**Arquivo:** `src/services/deckService.js`
+
+```javascript
+const DECK_URL = import.meta.env.VITE_DECK_URL ?? 'http://localhost:8081'
+
+export async function listDecks() {
+  const response = await fetch(`${DECK_URL}/decks`, {
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) {
+    if (response.status === 404) return []
+    throw new Error(`deck-service HTTP ${response.status}`)
+  }
+  return response.json()
+}
+```
+
+### Contrato da API
+
+`GET /decks` retorna array de:
+
+| Campo | Tipo | Exemplo |
+|-------|------|---------|
+| `id` | Long | 1 |
+| `name` | String | "Meu Deck" |
+| `ownerId` | String | "user-123" |
+| `mainDeckSize` | int | 40 |
+| `extraDeckSize` | int | 10 |
+| `sideDeckSize` | int | 0 |
+| `isValid` | boolean | true |
+| `totalCards` | int | 50 |
+
+---
+
+## Decisoes Tecnicas
+
+### ADR-005 — Fallback Silencioso
+
+| Campo | Detalhe |
+|-------|---------|
+| **Status** | Aceita |
+| **Data** | 2026-07-07 |
+| **Contexto** | deck-service pode estar offline; nao deve bloquear o fluxo de criacao de duelo |
+| **Decisao** | Erro de `listDecks()` e silencioso; usuario ve "Nenhum deck disponivel" e pode continuar com deck demo |
+| **Consequencias** | Usuario nao recebe feedback de erro se deck-service cair, mas o fluxo nao e interrompido |
+
+### ADR-006 — Sem Componente DeckSelector Separado
+
+| Campo | Detalhe |
+|-------|---------|
+| **Status** | Aceita |
+| **Data** | 2026-07-07 |
+| **Contexto** | WEB-007 original previa componente `DeckSelector.jsx` com grid, validacao e cartas em detalhe |
+| **Decisao** | Simplificar para `<select>` inline no LobbyPage ate que haja demanda por selecao avancada |
+| **Consequencias** | Menos componentes para manter; funcionalidade basica atendida; futuro `DeckSelector.jsx` pode ser extraido sem quebrar nada |
+
+---
+
+# Feature: IA de Oponente (Modo Local)
+
+> **Versao:** 0.5.0
+> **Implementada em:** 2026-07-07
+> **Status:** Concluida
+
+---
+
+## Resumo
+
+No modo local, o oponente era passivo (sem acoes, LP fixo em 6000). A feature implementa uma IA basica que executa turnos automaticamente com compra, invocacao, ataque e passagem de fase.
+
+**Motivacao:** O modo local so era util para testar invocacoes contra um boneco parado. Com IA, o jogador tem uma experiencia de jogo real sem depender de backend.
+**Resultado:** Oponente compra carta, invoca monstros, ataca e passa turno com delays visuais de 1s.
+
+---
+
+## Arquitetura
+
+### Estado do Oponente (DuelContext)
+
+Novos campos adicionados ao DuelContext:
+
+| Campo | Tipo | Descricao |
+|-------|------|-----------|
+| `opponentHand` | `Card[]` | Mao do oponente (visivel apenas para dev) |
+| `opponentDeckCards` | `Card[]` | Deck completo do oponente |
+| `opponentDeckRemaining` | `number[]` | Indices shuffleados restantes |
+
+Novas funcoes:
+
+| Funcao | Descricao |
+|--------|-----------|
+| `initOpponent()` | Gera deck (20 cartas YGOProDeck ou fallback), shuffle, distribui 5 iniciais |
+| `opponentDraw()` | Remove e retorna o topo do deck do oponente |
+| `addCardToOpponentHand(card)` | Adiciona carta a mao |
+| `removeFromOpponentHand(index)` | Remove carta da mao pelo indice |
+
+### useAiOpponent Hook
+
+**Arquivo:** `src/hooks/useAiOpponent.js`
+
+Hook React que reage a mudancas de `turn`, `phase.id` e `phaseOverlay` para executar acoes do oponente.
+
+#### Logica por Fase
+
+| Fase | Acao da IA |
+|------|-----------|
+| DRAW | `opponentDraw()` → `addCardToOpponentHand()` → `nextPhase()` |
+| MAIN1 | Encontra o primeiro monstro na mao, invoca na primeira zona livre → `nextPhase()` |
+| BATTLE | Seleciona o monstro mais forte no campo, ataca o mais fraco do oponente (ou direto) → `nextPhase()` |
+| MAIN2 | Se houver Spell/Trap na mao, baixa na primeira zona livre → `nextPhase()` |
+| END | `nextPhase()` |
+
+#### Combate da IA
+
+```
+1. Filtra monstros proprios que nao estao em defesa
+2. Seleciona o de maior ATK como atacante
+3. Se oponente tem monstros: alvo = menor ATK
+4. Se oponente nao tem monstros: ataque direto
+5. Resolve: compara ATK com ATK (ou ATK com DEF se alvo em defesa)
+6. Se atacante vence: alvo destruido, dano ao oponente
+7. Se defensor vence: atacante destruido, dano ao atacante
+8. Marca zona como atacada no turno
+```
+
+#### Game Over Detection
+
+**Arquivo:** `src/contexts/DuelContext.jsx`
+
+`useEffect` que monitora `playerLP` e `opponentLP`:
+```
+Se playerLP <= 0 → VITORIA DO OPONENTE
+Se opponentLP <= 0 → VITORIA!
+→ setGameResult() + setShowResult(true)
+```
+
+#### Delays
+
+Cada acao da IA tem delay de 1s (`AI_DELAY = 1000`) para que o jogador veja o que acontece. A transicao entre fases tem 500ms.
+
+```
+IA detecta fase → wait(1000) → executa acao → wait(500) → nextPhase → wait(500) → IA detecta nova fase
+```
+
+---
+
+## Fluxo de Inicializacao (Modo Local)
+
+```
+DuelPage monta
+  → resetDuel()
+  → initDeck()          (deck do jogador)
+  → initOpponent()      (deck do oponente + 5 cartas iniciais na mao)
+  → useAiOpponent(true) ativa
+```
+
+No primeiro turno (turno 1, jogador), a IA nao faz nada. Quando o jogador avanca para END e o turno passa para 2, a IA detecta `isOpponentTurn === true` e comeca a agir.
+
+---
+
+## Arquivos Envolvidos
+
+| Arquivo | Responsabilidade |
+|---------|-----------------|
+| `src/hooks/useAiOpponent.js` | Logica de decisao da IA |
+| `src/contexts/DuelContext.jsx` | Estado do oponente + game over detection |
+| `src/pages/DuelPage.jsx` | Inicializacao e ativacao da IA |
+
+---
+
+## Decisoes Tecnicas
+
+### ADR-007 — Hook em vez de Servico
+
+| Campo | Detalhe |
+|-------|---------|
+| **Status** | Aceita |
+| **Data** | 2026-07-07 |
+| **Contexto** | IA precisa acessar estado e funcoes do DuelContext e reagir a mudancas de fase |
+| **Decisao** | Implementar como hook React (`useAiOpponent`) em vez de servico puro |
+| **Consequencias** | Integracao direta com ciclo de vida do React; facilita uso de `useEffect` para reagir a mudancas de estado |
+
+### ADR-008 — Deteccao de Turno por Paridade
+
+| Campo | Detalhe |
+|-------|---------|
+| **Status** | Aceita |
+| **Data** | 2026-07-07 |
+| **Contexto** | Nao ha um campo `currentPlayer` no DuelContext; o turno par/impar determina de quem e a vez |
+| **Decisao** | `isOpponentTurn = turn > 1 && turn % 2 === 0` |
+| **Consequencias** | Simples e funcional; turno 1 = jogador, turno 2 = IA, turno 3 = jogador, ... |
+
+### ADR-009 — Acoes Diretas no Context vs LocalEngine
+
+| Campo | Detalhe |
+|-------|---------|
+| **Status** | Aceita |
+| **Data** | 2026-07-07 |
+| **Contexto** | LocalEngine foi projetada para acoes do jogador via UI (selectedCard, highlight, FX) |
+| **Decisao** | IA chama funcoes do DuelContext diretamente (`setOccupiedZones`, `dealDamage`, etc.) |
+| **Consequencias** | Mais rapido, sem depender de selectedCard; porem duplica logica de combate que ja existe em LocalEngine |

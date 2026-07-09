@@ -27,7 +27,7 @@ const ACTION_COLOR = {
 export default function CardContextMenu() {
   const {
     selectedCard, clearSelection,
-    phase, occupiedZones, flags,
+    phase, occupiedZones, flags, turn,
     executeAction, attackingZone,
   } = useDuel()
 
@@ -36,7 +36,7 @@ export default function CardContextMenu() {
   const [tooltip, setTooltip] = useState(null)
 
   const actions = selectedCard
-    ? engine.getAvailableActions({ selectedCard, phase, flags, occupiedZones })
+    ? engine.getAvailableActions({ selectedCard, phase, flags, occupiedZones, turn })
     : []
 
   const anchor = selectedCard?.menuAnchor // { x, y, w, h }

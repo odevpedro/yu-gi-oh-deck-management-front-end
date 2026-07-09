@@ -2,6 +2,8 @@ import { Client } from '@stomp/stompjs'
 import SockJS from 'sockjs-client'
 
 const DUEL_WS_URL = import.meta.env.VITE_DUEL_WS_URL ?? 'http://localhost:8084/ws'
+const MAX_RECONNECT_ATTEMPTS = 10
+const BASE_DELAY = 2000
 
 function parseMessageBody(message) {
   try {
@@ -11,14 +13,20 @@ function parseMessageBody(message) {
   }
 }
 
-export function createDuelClient({ duelId, token, onStateUpdate, onGameOver, onError }) {
+export function createDuelClient({ duelId, token, onStateUpdate, onGameOver, onError, onReconnect }) {
+  let attempt = 0
+
   const client = new Client({
     webSocketFactory: () => new SockJS(DUEL_WS_URL),
     connectHeaders: {
       Authorization: `Bearer ${token}`,
     },
-    reconnectDelay: 3000,
+    heartbeatIncoming: 10000,
+    heartbeatOutgoing: 10000,
+    reconnectDelay: BASE_DELAY,
     onConnect: () => {
+      attempt = 0
+      onReconnect?.()
       client.subscribe(`/topic/duel/${duelId}`, (message) => {
         onStateUpdate?.(parseMessageBody(message))
       })
@@ -28,6 +36,13 @@ export function createDuelClient({ duelId, token, onStateUpdate, onGameOver, onE
     },
     onStompError: (frame) => {
       onError?.(frame.headers?.message ?? 'STOMP error')
+    },
+    onWebSocketClose: () => {
+      attempt++
+      if (attempt > MAX_RECONNECT_ATTEMPTS) {
+        onError?.('Conexao perdida. Recarregue a pagina.')
+        client.deactivate()
+      }
     },
     onWebSocketError: () => {
       onError?.('WebSocket connection failed')

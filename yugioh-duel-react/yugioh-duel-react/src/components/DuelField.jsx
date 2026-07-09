@@ -4,10 +4,13 @@
 import Zone       from './Zone'
 import DeckZone   from './DeckZone'
 import PlayerHand from './PlayerHand'
-import { useDuel, PHASES } from '../contexts/DuelContext'
+import DuelLog from './DuelLog'
+import { useDuel } from '../contexts/DuelContext'
+import { PHASES } from '../contexts/duelReducer'
 
 export default function DuelField() {
-  const { instruction, turn, phase, phaseIndex, nextPhase } = useDuel()
+  const { instruction, turn, phase, phaseIndex, nextPhase,
+          playerBanished, opponentBanished } = useDuel()
 
   return (
     <>
@@ -21,9 +24,10 @@ export default function DuelField() {
               <Zone key={`om${i}`} zoneKey={`om${i}`} type="monster" side="opponent" dataZone={i} />
             ))}
             <Zone type="gy" side="opponent" label="GRAVEYARD" />
+            <Zone type="banished" side="opponent" label={`BANISHED (${opponentBanished.length})`} />
           </div>
           <div className="field-grid">
-            <Zone type="extra" side="opponent" label="EXTRA DECK" />
+            <Zone type="extra" side="opponent" label={`EXTRA (0)`} />
             {[0,1,2,3,4].map(i => (
               <Zone key={`os${i}`} zoneKey={`os${i}`} type="spell" side="opponent"
                 label={i===0||i===4 ? 'PENDULUM' : 'SPELL/TRAP'} />
@@ -62,9 +66,10 @@ export default function DuelField() {
               ))}
             </div>
             <Zone type="gy" side="player" label="GRAVEYARD" />
+            <Zone type="banished" side="player" label={`BANISHED (${playerBanished.length})`} />
           </div>
           <div className="field-grid" id="playerSpellRow">
-            <Zone type="extra" side="player" label="EXTRA DECK" />
+            <Zone type="extra" side="player" label={`EXTRA (0)`} />
             <div id="playerSpellZones" style={{ display: 'contents' }}>
               {[0,1,2,3,4].map(i => (
                 <Zone key={`ps${i}`} zoneKey={`ps${i}`} type="spell" side="player"
@@ -79,6 +84,7 @@ export default function DuelField() {
       </main>
 
       <div className="instruction" id="instruction">{instruction}</div>
+      <DuelLog />
     </>
   )
 }

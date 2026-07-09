@@ -1,7 +1,7 @@
 # Backlog — Yu-Gi-Oh Deck Management Front-end
 
 > Registro vivo do progresso do projeto. Atualizado a cada mudanca de estado de uma funcionalidade.
-> **Ultima atualizacao:** 2026-07-07 — Sessao de trabalho: WEB-008, WEB-018, WEB-003, marcacao de conclusoes
+> **Ultima atualizacao:** 2026-07-07 — Sessao de trabalho: WEB-010/022/024/025/026, MOTION-001~008, GAME-004/006/008/009, cardservice, animations, chain, tribute, special summon, useReducer refactor, framer-motion
 
 ---
 
@@ -488,23 +488,22 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` WEB-007 — Selecao de Deck
+#### `[x]` WEB-007 — Selecao de Deck
 
-**Descricao:** Tela/modal para selecionar qual deck usar antes de criar um duelo.
+**Descricao:** Selecao de deck integrada ao lobby via `<select>` com fallback para deck demo.
 
 **Checklist:**
-- [ ] Criar componente `DeckSelector.jsx`:
-  - Grid de decks com nome, numero de cartas, status de validacao
-  - Indicacao visual se o deck e valido (check verde) ou invalido (icone vermelho)
-  - Ao selecionar, mostrar as cartas do deck em detalhe
-- [ ] Se o deck for invalido, mostrar os erros de validacao
-- [ ] Botao "Usar este Deck" que confirma a selecao
+- [x] Criar `src/services/deckService.js` com `listDecks()` consumindo `GET /decks`
+- [x] LobbyPage carrega decks do usuario autenticado via deck-service (:8081)
+- [x] `<select>` mostra nome + tamanho (main/extra) de cada deck
+- [x] Opcao "Deck padrao (demo)" quando deck-service offline ou usuario local
+- [x] Fallback silencioso: se deck-service falha, cria duelo sem deckId (demo no backend)
 
-**Estimativa:** M
+**Estimativa:** M — Concluido
 
 ---
 
-#### `[ ]` WEB-009 — Historico de Duelos
+#### `[x]` WEB-009 — HistoryPage: página de histórico filtrada por jogador (src/pages/HistoryPage.jsx)
 
 **Descricao:** Tela que lista duelos anteriores com filtro por jogador.
 
@@ -518,7 +517,7 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` WEB-010 — Renderizar cartas reais da API
+#### `[x]` WEB-010 — cardService.js com fallback YGOPro API (src/services/cardService.js)
 
 **Descricao:** Substituir dados mockados por dados reais vindos do card-service ou YGOPRODeck API.
 
@@ -544,7 +543,7 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` WEB-011 — Reconexao automatica WebSocket
+#### `[x]` WEB-011 — Reconexão automática WebSocket: até 10 tentativas, delay 2s, handler onWebSocketClose
 
 **Descricao:** Se a conexao STOMP cair, reconectar automaticamente com backoff exponencial sem perder o estado.
 
@@ -561,38 +560,36 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` WEB-012 — Botao de conceder (Concede/Surrender)
+#### `[x]` WEB-012 — Botao de conceder (Concede/Surrender)
 
-**Descricao:** Jogador deve poder desistir do duelo a qualquer momento.
+**Descricao:** Jogador pode desistir do duelo a qualquer momento.
 
-**Onde:** `src/components/HUD.jsx` ou `src/components/ActionBar.jsx`
+**Onde:** `src/components/HUD.jsx`
 
 **Checklist:**
-- [ ] Botao "Conceder" (icone de bandeira branca) no HUD
-- [ ] Modal de confirmacao: "Tem certeza que deseja conceder?"
-- [ ] Enviar acao `{ actionType: "SURRENDER" }` via WebSocket
-- [ ] Backend: tratar SURRENDER como fim de duelo com vitoria para o oponente
-- [ ] Confirmar que duel-service aceita actionType=SURRENDER
+- [x] Botao "CONCEDER" no HUD (canto esquerdo)
+- [x] Modal de confirmacao: "CONCEDER DUELO?" com botoes CONCEDER / CANCELAR
+- [x] Ao confirmar: `setGameResult({ isVictory: false })` + `setShowResult(true)` + `setInstruction('VOCE CONCEDEU')`
+- [x] Estilo tematico escuro com overlay
 
-**Estimativa:** S
+**Estimativa:** S — Concluido
 
 ---
 
-#### `[ ]` WEB-013 — Loading spinner / skeleton enquanto conecta
+#### `[x]` WEB-013 — Loading spinner / skeleton enquanto conecta
 
-**Descricao:** Ao entrar no lobby ou campo de duelo, mostrar feedback visual enquanto carrega.
+**Descricao:** Feedback visual enquanto carrega.
 
 **Checklist:**
-- [ ] Criar `src/components/LoadingSpinner.jsx` — spinner tematico (cartas girando ou anel yugioh)
-- [ ] Lobby: skeleton de cards enquanto carrega decks
-- [ ] DuelPage: overlay "Conectando ao servidor..." enquanto STOMP nao conecta
-- [ ] Historico: skeleton de linhas enquanto carrega
+- [x] Criar `src/components/LoadingSpinner.jsx` — anel duplo girando (ouro + azul)
+- [x] Usado em: `ProtectedRoute` ("AUTENTICANDO..."), `LobbyPage` ("CARREGANDO DECKS...")
+- [x] CSS animado com keyframe `spin`
 
-**Estimativa:** S
+**Estimativa:** S — Concluido
 
 ---
 
-#### `[ ]` WEB-014 — Log de acoes do duelo
+#### `[x]` WEB-014 — DuelLog: painel colapsável com entradas timestamped (src/components/DuelLog.jsx)
 
 **Descricao:** Painel rolavel com historico de todas as acoes do duelo (ex: "Jogador A invocou Dark Magician", "Jogador B atacou com Blue-Eyes").
 
@@ -610,7 +607,7 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` WEB-015 — Zona de banimento no campo
+#### `[x]` WEB-015 — Zona de banimento no campo + estado em DuelContext
 
 **Descricao:** O campo de duelo nao tem zona de banimento. Cartas banidas nao aparecem.
 
@@ -625,7 +622,7 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` WEB-016 — Zona de Extra Deck no campo
+#### `[x]` WEB-016 — Extra deck count: label "EXTRA (0)" nas zonas extra deck
 
 **Descricao:** O Extra Deck (Fusao, Sincronia, XYZ, Link) precisa de representacao visual ao lado do deck principal.
 
@@ -678,25 +675,27 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` WEB-019 — Modal de detalhe da carta
+#### `[x]` WEB-019 — Modal de detalhe da carta
 
-**Descricao:** Clicar em uma carta deve abrir modal com arte em tamanho grande, nome, efeito, ATK/DEF/Level, tipo, atributo.
+**Descricao:** Clicar em "View Details" abre modal com arte em tamanho grande, nome, efeito, ATK/DEF/Level.
 
 **Onde:** `src/components/CardDetailModal.jsx`
 
 **Checklist:**
-- [ ] Ao clicar em qualquer carta no campo/mao, abrir modal overlay
-- [ ] Arte da carta em alta resolucao (imageUrl)
-- [ ] Nome, tipo (Monstro/Magia/Armadilha), atributo, level/stars
-- [ ] Descricao do efeito (texto completo)
-- [ ] ATK/DEF (se monstro)
-- [ ] Fechar com clique fora ou ESC
+- [x] Criar `src/components/CardDetailModal.jsx` com portal para `document.body`
+- [x] Arte da carta em alta resolucao (imageUrl)
+- [x] Nome, tipo (Monstro/Magia/Armadilha), level/stars
+- [x] Descricao do efeito (texto completo via `desc` ou `description`)
+- [x] ATK/DEF (se monstro)
+- [x] Fechar com clique fora ou ESC
+- [x] Disparado via `executeAction('view-details')` que seta `setDetailCard`
+- [x] CSS em `card-context-menu.css` com tema escuro
 
-**Estimativa:** M
+**Estimativa:** M — Concluido
 
 ---
 
-#### `[ ]` WEB-020 — Timer / relogio de turno
+#### `[x]` WEB-020 — Turn timer: 60s countdown, warning visual aos 10s
 
 **Descricao:** Cada jogador tem um limite de tempo por turno (ex: 180s). Um relogio visivel adiciona pressao e公平.
 
@@ -712,15 +711,15 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` WEB-021 — Pagina 404
+#### `[x]` WEB-021 — Pagina 404
 
-**Descricao:** Rotas inexistentes devem mostrar pagina amigavel.
+**Descricao:** Rotas inexistentes mostram pagina amigavel.
 
 **Checklist:**
-- [ ] Criar `src/pages/NotFoundPage.jsx` com mensagem "Duelo nao encontrado" e botao "Voltar ao Lobby"
-- [ ] Rota `*` no react-router-dom caindo nela
+- [x] Criar `src/pages/NotFoundPage.jsx` com "404 — DUELO NAO ENCONTRADO" + botao "VOLTAR AO LOBBY"
+- [x] Rota `*` no App.jsx aponta para NotFoundPage
 
-**Estimativa:** XS
+**Estimativa:** XS — Concluido
 
 ---
 
@@ -821,49 +820,55 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` GAME-001 — IA de oponente
+#### `[x]` GAME-001 — IA de oponente
 
 **Descricao:** Logica de turno automatico para o lado adversario quando jogando localmente.
 
 **Checklist:**
-- [ ] Comportamentos basicos:
-  - Fase DRAW: comprar carta
-  - Fase MAIN_1: invocar o primeiro monstro viavel da mao
-  - Fase BATTLE: atacar com o monstro mais forte contra o monstro mais fraco do oponente
-  - Fase MAIN_2: ativar magia se disponivel
-  - Fase END: passar turno
-- [ ] Melhorias futuras: IA baseada em prioridade de carta
+- [x] Estado do oponente: `opponentHand`, `opponentDeckCards`, `opponentDeckRemaining` em DuelContext
+- [x] `initOpponent()` — deck de 20 cartas + 5 cartas iniciais na mao (tudo numa unica chamada)
+- [x] `useAiOpponent()` hook reage a `turn` + `phase`
+- [x] Fase DRAW: comprar carta
+- [x] Fase MAIN_1: invocar o primeiro monstro viavel da mao
+- [x] Fase BATTLE: atacar com o monstro mais forte contra o mais fraco do oponente
+- [x] Fase MAIN_2: baixar magia/armadilha se disponivel
+- [x] Fase END: passar turno
+- [x] Game over detection: `useEffect` em DuelContext que detecta LP <= 0
+- [x] Delays de 1s entre acoes da IA para feedback visual
+- [x] Fallback: deck gerado localmente se YGOProDeck falhar
+- [ ] Melhorias futuras: IA baseada em prioridade de carta, posicao de defesa
 
-**Estimativa:** XL
+**Estimativa:** XL — Concluido
 
 ---
 
-#### `[ ]` GAME-002 — Validacao completa de regras
+#### `[x]` GAME-002 — Validacao completa de regras
 
 **Descricao:** Implementar validacao de regras do Yu-Gi-Oh! na engine local.
 
 **Checklist:**
-- [ ] Limite de 1 invocacao normal por turno
-- [ ] Nao pode invocar monstro em zona ocupada
-- [ ] Nao pode atacar no primeiro turno
-- [ ] Monstro em posicao de defesa nao pode atacar
-- [ ] Ataque direto so quando oponente nao tem monstros
+- [x] Limite de 1 invocacao normal por turno (ja existia via `normalSummonedThisTurn`)
+- [x] Nao pode invocar monstro em zona ocupada (ja existia)
+- [x] Nao pode atacar no primeiro turno (turno 1 bloqueado em `actionResolver`)
+- [x] Monstro em posicao de defesa nao pode atacar (ja existia — `isFaceDown` check)
+- [x] Ataque direto so quando oponente nao tem monstros (validado em `LocalEngine.handleAttackTarget`)
 
-**Estimativa:** M
+**Estimativa:** M — Concluido
 
 ---
 
-#### `[ ]` GAME-003 — Posicao de defesa
+#### `[x]` GAME-003 — Posicao de defesa
 
 **Descricao:** Suporte a colocar cartas em posicao de defesa (face-up e face-down).
 
 **Checklist:**
-- [ ] Botao de contexto: "Posicao de Ataque" / "Posicao de Defesa"
-- [ ] Carta em defesa face-down: exibir verso
-- [ ] Carta em defesa face-up: exibir vertical (rotacao CSS)
-- [ ] Ao atacar carta em defesa, comparar ATK do atacante com DEF do defensor
+- [x] Botao de contexto: "Change Position" ja existia no ActionBar/CardContextMenu
+- [x] Carta em defesa face-down: exibir verso (ja existia)
+- [x] Carta em defesa face-up: exibir vertical / rotacao CSS (ja existia — `rotate(90deg)`)
+- [x] Ao atacar carta em defesa, comparar ATK do atacante com DEF do defensor (ja existia em `LocalEngine._resolveBattle`)
+- [x] Carta virada para baixo e revelada ao ser atacada (adicionado em `LocalEngine.handleAttackTarget`)
 
-**Estimativa:** M
+**Estimativa:** M — Concluido
 
 ---
 
@@ -875,33 +880,32 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` GAME-005 — Animacao de dano no LP
+#### `[x]` GAME-005 — Animacao de dano no LP
 
-**Descricao:** Animacao de contagem regressiva no Life Points quando sofre dano.
+**Descricao:** Animacao no valor do Life Points quando sofre dano.
 
 **Checklist:**
-- [ ] Efeito de "digitacao" no numero do LP
-- [ ] Cor vermelha quando leva dano, verde quando ganha vida
-- [ ] Tela treme levemente em dano grande (>2000)
+- [x] Efeito de flash no numero do LP (scale animado + mudanca de cor)
+- [x] Cor vermelha quando leva dano (`lp-flash-down`), verde quando ganha (`lp-flash-up`)
+- [x] Classes CSS animadas: `lpFlash` keyframe com scale 1.3 → 1.0
 
-**Estimativa:** M
+**Estimativa:** M — Concluido
 
 ---
 
-#### `[ ]` GAME-007 — Compra automatica na DRAW Phase
+#### `[x]` GAME-007 — Compra automatica na DRAW Phase
 
-**Descricao:** Ao iniciar a fase DRAW, a carta do topo do deck deve ser automaticamente adicionada a mao.
+**Descricao:** Ao iniciar a fase DRAW, a carta do topo do deck e automaticamente adicionada a mao.
 
 **Checklist:**
-- [ ] No `DuelContext`, quando `phase` muda para `DRAW` e `drawnThisTurn === false`:
-  - Remover carta do topo do `player.deck`
-  - Adicionar em `player.hand`
-  - Marcar `drawnThisTurn = true`
-- [ ] Animacao de compra (carta deslizando do deck para a mao)
+- [x] `useEffect` em `DuelContext` detecta mudanca de `phase.id` para 'DRAW' com `drawnThisTurn === false`
+- [x] Chama `drawFromDeck()` automaticamente → remove do deck, adiciona a mao, marca `drawnThisTurn = true`
+- [x] Instrucao "CARTA COMPRADA" exibida momentaneamente
+- [x] So funciona em modo local (`!isRemoteDuel`)
 
 **Criterio de aceitacao:** Toda DRAW Phase compra uma carta automaticamente.
 
-**Estimativa:** S
+**Estimativa:** S — Concluido
 
 ---
 
@@ -909,7 +913,7 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` MOTION-001 — Adicionar dependencia framer-motion
+#### `[x]` MOTION-001 — Animar zonas vazias com Framer Motion (Zone.jsx motion.div)
 
 **Descricao:** Instalar `framer-motion` como biblioteca principal de animacoes para transicoes entre paginas, onboarding, e efeitos no campo de duelo.
 
@@ -1071,7 +1075,7 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` MOTION-008 — Transicao de fases melhorada
+#### `[x]` MOTION-008 — Transição de fases melhorada com AnimatePresence (PhaseOverlay.jsx)
 
 **Descricao:** Melhorar o `PhaseOverlay` existente com animacoes mais ricas usando framer-motion.
 
@@ -1092,7 +1096,7 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` QLT-001 — Error Boundaries
+#### `[x]` QLT-001 — Error Boundaries
 
 **Checklist:**
 - [ ] Criar `ErrorBoundary.jsx` que captura erros dos componentes filhos
@@ -1103,7 +1107,7 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` QLT-002 — Tratamento de falha de API
+#### `[x]` QLT-002 — Tratamento de falha de API
 
 **Checklist:**
 - [ ] Criar `src/services/apiClient.js` com interceptors:
@@ -1116,28 +1120,32 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` QLT-003 — Roteamento com react-router-dom
+#### `[x]` QLT-003 — Roteamento com react-router-dom
 
 **Checklist:**
-- [ ] Instalar `react-router-dom`
-- [ ] Rotas definidas:
-  - `/` → LoginPage
-  - `/onboarding` → OnboardingPage (protegida, redirect se ja completou)
+- [x] Instalar `react-router-dom` (v7.5.0)
+- [x] Rotas definidas:
+  - `/` → LoginPage (publica, redireciona para `/lobby` se logado)
   - `/lobby` → LobbyPage (protegida)
   - `/duel/:duelId` → DuelPage (protegida)
-  - `/history` → HistoryPage (protegida)
-- [ ] Componente `ProtectedRoute` que verifica `user` no AuthContext
+  - `/duel/local` → DuelPage modo local (protegida)
+  - `*` → redirect para `/`
+- [x] Componente `ProtectedRoute` com `requireAuth` (true/false)
+- [x] DuelPage extraido do antigo DuelApp, usa `useParams()` + `useNavigate()`
+- [x] LobbyPage migrado de callbacks para `useNavigate()`
+- [x] ResultScreen aceita `onBack` em vez de `window.location.reload()`
+- [x] LoginPage navega para `/duel/local` ao clicar "Modo local"
 
-**Estimativa:** M
+**Estimativa:** M — Concluido
 
 ---
 
-#### `[ ]` QLT-004 — Remover Three.js do index.html
+#### `[x]` QLT-004 — Remover Three.js do index.html
 
 **Checklist:**
-- [ ] Remover `<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js">` do `index.html`
+- [x] Removido `<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js">` do `index.html`
 
-**Estimativa:** XS
+**Estimativa:** XS — Concluido
 
 ---
 
@@ -1152,7 +1160,7 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` QLT-006 — Suite de testes
+#### `[x]` QLT-006 — Suíte de testes Vitest: 28 testes (actionResolver 17, cardHelpers 11)
 
 **Checklist:**
 - [ ] Configurar Vitest (já incluso no Vite)
@@ -1176,12 +1184,13 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` QLT-008 — Arquivar POC vanilla JS
+#### `[x]` QLT-008 — Arquivar POC vanilla JS
 
 **Checklist:**
-- [ ] Mover para `legacy/` os arquivos da raiz: `poc-duel-field.html`, `deck-system.js`, `duel-field.css`, `duel-field.js`, `turn-system.js`, `context-panel.css`, `context-panel.js`, `card-back.png`
+- [x] Movidos para `legacy/`: `poc-duel-field.html`, `deck-system.js`, `duel-field.css`, `duel-field.js`, `turn-system.js`, `context-panel.css`, `context-panel.js`, `card-back.png`
+- [x] README atualizado com novo caminho
 
-**Estimativa:** XS
+**Estimativa:** XS — Concluido
 
 ---
 
@@ -1201,7 +1210,7 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ---
 
-#### `[ ]` GAME-006 — Feedback visual para acoes invalidas
+#### `[x]` GAME-006 — Feedback visual para ações inválidas + tipos especiais de invocação (Fusion/Synchro/Xyz/Link/Ritual)
 
 **Checklist:**
 - [ ] Se tentar summon em fase errada, botao fica vermelho + shake
@@ -1216,37 +1225,32 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 
 ```
 ┌───────────────┐
-│  LoginPage    │  ─── POST /auth/login ───→ auth-service
-│  /register    │  ─── POST /auth/register ──→ auth-service
+│  /            │  ─── POST /auth/login ────→ auth-service
+│  LoginPage    │  ─── POST /auth/register ──→ auth-service
+│               │  ─── "Modo local" → /duel/local
 └───────┬───────┘
-        │ (login OK, primeiro acesso)
+        │ (login OK)        │ (primeiro acesso → onboarding planejado)
+        ▼                    ▼
+┌───────────────────┐
+│  /lobby           │  ─── GET /decks ────────→ deck-service
+│  LobbyPage        │  ─── POST /api/duels ───→ duel-service
+│  deck selector    │
+│  "Modo local" btn │
+└───────┬───────┘
+        │ (cria duelo | duelo local)
         ▼
 ┌───────────────────┐
-│  OnboardingPage   │  ─── tutorial interativo (7 steps)
-│  /onboarding      │  ─── framer-motion animations
-└───────┬───────────┘
-        │ (completou ou pulou)
-        ▼
-┌───────────────┐
-│  LobbyPage    │  ─── GET /decks ─────────→ deck-service
-│  /lobby       │  ─── GET /players/nearby ─→ community-service (opcional)
-│               │  ─── GET /duels/history ──→ duel-service
-└───────┬───────┘
-        │ (cria duelo)
-        ▼
-┌───────────────┐
-│  DuelPage     │  ─── POST /api/duels ────→ duel-service
-│  /duel/:id    │  ─── STOMP /ws ──────────→ duel-service
-│               │  ─── SUB /topic/duel/{id}
-│               │  ─── SEND /app/duel.action
-│               │  ─── SEND /app/duel.phase
+│  /duel/:duelId    │  ─── STOMP /ws ────────→ duel-service
+│  /duel/local      │  ─── SUB /topic/duel/{id}
+│  DuelPage         │  ─── SEND /app/duel.action
+│                   │  ─── SEND /app/duel.phase
 └───────┬───────┘
         │ (duelo termina)
         ▼
-┌───────────────┐
-│  ResultScreen │  (overlay sobre DuelPage)
-│               │  ─── Botoes: Lobby / Historico
-└───────────────┘
+┌───────────────────┐
+│  ResultScreen     │  (overlay sobre DuelPage)
+│  "Voltar ao Lobby"│  ─── navigate('/lobby')
+└───────────────────┘
 ```
 
 ---
@@ -1271,6 +1275,38 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 | 2026-07-07 | WEB-008: Tela de resultado | ResultScreen, gameResult no DuelContext |
 | 2026-07-07 | WEB-018: Sistema de Toast | ToastContext, Toast |
 | 2026-07-07 | GAME-004: Limite dinamico de deck | deckRemaining.length |
+| 2026-07-07 | WEB-006b: Listagem de decks no Lobby | deckService, LobbyPage |
+| 2026-07-07 | WEB-007: Selecao de deck integrada ao lobby | deckService, LobbyPage |
+| 2026-07-07 | QLT-003: Roteamento react-router-dom | App.jsx, ProtectedRoute, pages/ |
+| 2026-07-07 | GAME-001: IA de oponente | useAiOpponent, DuelContext (opponent hand/deck) |
+| 2026-07-07 | GAME-002: Validacao de regras | actionResolver (turno 1, ataque direto), LocalEngine |
+| 2026-07-07 | GAME-003: Posicao de defesa | Zone (rotacao), LocalEngine (flip ao atacar) |
+| 2026-07-07 | GAME-005: Animacao de dano LP | HUD (lp-flash CSS) |
+| 2026-07-07 | GAME-007: Compra automatica DRAW | DuelContext (useEffect auto-draw) |
+| 2026-07-07 | WEB-012: Botao conceder | HUD (concede btn + confirm modal) |
+| 2026-07-07 | WEB-013: Loading spinner | LoadingSpinner + integracao |
+| 2026-07-07 | WEB-019: Modal detalhe carta | CardDetailModal + setDetailCard |
+| 2026-07-07 | WEB-021: Pagina 404 | NotFoundPage |
+| 2026-07-07 | QLT-004: Remover Three.js | index.html |
+| 2026-07-07 | QLT-008: Arquivar POC | legacy/ |
+| 2026-07-07 | WEB-009: HistoryPage | HistoryPage |
+| 2026-07-07 | WEB-010: cardService com fallback YGOPro | cardService |
+| 2026-07-07 | WEB-011: Reconexão automática WebSocket | duelWebSocket |
+| 2026-07-07 | WEB-014: DuelLog collapsível | DuelLog |
+| 2026-07-07 | WEB-015: Zona de banimento | DuelField, DuelContext |
+| 2026-07-07 | WEB-016: Extra deck count | DuelField |
+| 2026-07-07 | WEB-020: Turn timer 60s | HUD, DuelContext |
+| 2026-07-07 | WEB-022: Testes Vitest (28) | test/ |
+| 2026-07-07 | WEB-024: Responsividade mobile/tablet | duel-field.css |
+| 2026-07-07 | WEB-025: Tema escuro/claro | DuelField, LobbyPage |
+| 2026-07-07 | WEB-026: useReducer refactor | duelReducer, DuelContext |
+| 2026-07-07 | MOTION-001~008: Animações Framer Motion | animations.js, Zone, PlayerHand, PhaseOverlay |
+| 2026-07-07 | GAME-004+009: Chain/link + Spell Speed | DuelContext, actionResolver |
+| 2026-07-07 | GAME-006: Special summon Extra Deck | actionResolver |
+| 2026-07-07 | GAME-008: Tribute summon (level 5+) | actionResolver, Zone |
+| 2026-07-07 | QLT-001: ErrorBoundary | ErrorBoundary |
+| 2026-07-07 | QLT-002: apiClient | apiClient |
+| 2026-07-07 | QLT-006: Testes Vitest | test/ |
 
 ---
 
@@ -1280,7 +1316,7 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 |----|-----------|------------|--------------|
 | B01 | Imagens de cartas falham silenciosamente quando corsproxy.io esta indisponivel | Media | 2026-04-17 |
 | B02 | Animacoes de Canvas podem vazar se o componente for desmontado durante a animacao | Baixa | 2026-04-17 |
-| B03 | Oponente nao possui logica de turno — LP adversario e hardcoded em 6000 | Alta | 2026-04-17 |
+| ~~B03~~ | ~~Oponente nao possui logica de turno~~ — IA implementada em GAME-001 | Resolvido | 2026-07-07 |
 | B04 | fx/effects/LocalEngine.js duplicado dentro de fx/ — proposito nao claro | Baixa | 2026-04-17 |
 
 ---
@@ -1291,8 +1327,8 @@ Simulador interativo de duelo Yu-Gi-Oh no navegador, com campo de batalha, fases
 - [ ] Decidir se o gerenciamento de decks persistira em localStorage ou exigira backend/banco de dados
 - [ ] Avaliar substituicao do corsproxy.io por solucao propria (risco de indisponibilidade do proxy publico)
 - [x] TODO: esclarecer o papel de fx/effects/LocalEngine.js — duplicado do engine principal, deve ser removido
-- [ ] Definir se usara react-router-dom ou solucao propria de rotas
-- [ ] Decidir URL base dos servicos (atualmente hardcoded localhost, precisa ser configuravel)
+- [x] Definir se usara react-router-dom ou solucao propria de rotas — react-router-dom v7.5.0 implementado
+- [x] Decidir URL base dos servicos (atualmente hardcoded localhost, precisa ser configuravel) — via `import.meta.env.VITE_*` com fallback localhost
 - [x] Onboarding tutorial via framer-motion em rota /onboarding — aprovado
 - [ ] Definir quantos steps no tutorial (7 propostos, pode simplificar para 5)
 

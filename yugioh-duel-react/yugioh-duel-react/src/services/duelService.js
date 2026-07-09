@@ -36,3 +36,11 @@ export function createDuel({ playerAId, playerBId, playerADeckId, playerBDeckId 
 export function getDuelState(duelId) {
   return requestJson(`/api/duels/${duelId}/state`)
 }
+
+export function getDuelHistory() {
+  return requestJson('/api/duels/history')
+}
+
+export function getPlayerHistory(playerId) {
+  return requestJson(`/api/duels/history/player/${playerId}`)
+}

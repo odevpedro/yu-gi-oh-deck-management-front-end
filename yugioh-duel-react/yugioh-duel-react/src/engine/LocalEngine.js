@@ -22,7 +22,7 @@ export class LocalEngine extends DuelEngineAdapter {
 
   _displayUrl(card) {
     const raw = this._rawImg(card)
-    return raw ? proxiedUrl(raw) : ''
+    return raw ? raw : ''
   }
 
   _freeMonsterZone(occupiedZones) {
@@ -36,8 +36,8 @@ export class LocalEngine extends DuelEngineAdapter {
   // ── getAvailableActions ──────────────────────────────────
 
   getAvailableActions(gameState) {
-    const { selectedCard, phase, flags, occupiedZones } = gameState
-    return resolveActions(selectedCard, phase, flags, occupiedZones)
+    const { selectedCard, phase, flags, occupiedZones, turn } = gameState
+    return resolveActions(selectedCard, phase, flags, occupiedZones, turn)
   }
 
   // ── requestAction ────────────────────────────────────────
@@ -238,6 +238,24 @@ export class LocalEngine extends DuelEngineAdapter {
       setOccupiedZones, setInstruction,
       setAttackingZone, dealDamage, sendToGraveyard, lpDamageFX,
     } = mutations
+
+    // Direct attack only if opponent has no monsters
+    if (!targetZone) {
+      const opponentMonsters = Object.keys(occupiedZones).some(k => k.startsWith('om') && occupiedZones[k])
+      if (opponentMonsters) {
+        setInstruction('DIRECT ATTACK NOT ALLOWED — OPPONENT HAS MONSTERS')
+        setAttackingZone(null)
+        return
+      }
+    }
+
+    // Flip face-down defender face-up when attacked
+    if (targetZone && occupiedZones[targetZone]?.faceDown) {
+      setOccupiedZones(prev => ({
+        ...prev,
+        [targetZone]: { ...prev[targetZone], faceDown: false }
+      }))
+    }
 
     const attackerSlot = occupiedZones[attackingZone]
     const targetSlot   = targetZone ? occupiedZones[targetZone] : null

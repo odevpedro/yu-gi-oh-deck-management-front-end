@@ -109,7 +109,7 @@ export function normalSummonFX(zoneEl) {
   const DURATION = 900; let start = null
   ;(function draw(ts) {
     if (!start) start = ts
-    const t = Math.min((ts-start)/DURATION, 1)
+    const t = Math.max(0, Math.min((ts-start)/DURATION, 1))
     ctx.clearRect(0, 0, CW, CH)
     if (t < .35) {
       const bt = t/.35, brad = ZW*.6*bt
@@ -228,7 +228,7 @@ export function specialSummonFX(zoneEl, cardType) {
   const DUR=1100; let start=null
   ;(function draw(ts){
     if(!start)start=ts
-    const p=Math.min((ts-start)/DUR,1)
+    const p=Math.max(0,Math.min((ts-start)/DUR,1))
     ctx.clearRect(0,0,CW,CH); drawFn(p)
     if(p<1)requestAnimationFrame(draw); else cv.remove()
   })(performance.now())
@@ -248,7 +248,7 @@ export function spellActivationFX(zoneEl, isSpell) {
   const DUR=800; let start=null
   ;(function draw(ts){
     if(!start)start=ts
-    const p=Math.min((ts-start)/DUR,1)
+    const p=Math.max(0,Math.min((ts-start)/DUR,1))
     ctx.clearRect(0,0,CW,CH)
     const r=ZW*.42*(1+p*.3), rot=p*Math.PI*(isSpell?1:2)
     const alpha=p<.4?p/.4:(1-p)/.6
@@ -277,7 +277,7 @@ export function attackFX(attackerEl, targetEl, onImpact) {
   const DUR=420; let start=null
   ;(function draw(ts){
     if(!start)start=ts
-    const p=Math.min((ts-start)/DUR,1)
+    const p=Math.max(0,Math.min((ts-start)/DUR,1))
     ctx.clearRect(0,0,cv.width,cv.height)
     const px=x1+(x2-x1)*p, py=y1+(y2-y1)*p
     const tx=x1+(x2-x1)*Math.max(0,p-.18), ty=y1+(y2-y1)*Math.max(0,p-.18)
@@ -299,7 +299,7 @@ export function attackFX(attackerEl, targetEl, onImpact) {
       let is=null
       ;(function idraw(ts2){
         if(!is)is=ts2
-        const ip=Math.min((ts2-is)/500,1), ia=1-ip
+        const ip=Math.max(0,Math.min((ts2-is)/500,1)), ia=1-ip
         ictx.clearRect(0,0,ic.width,ic.height)
         ictx.beginPath(); ictx.arc(x2,y2,R*ip,0,Math.PI*2)
         ictx.strokeStyle=`rgba(255,200,50,${ia*.8})`; ictx.lineWidth=3*(1-ip)+1; ictx.stroke()

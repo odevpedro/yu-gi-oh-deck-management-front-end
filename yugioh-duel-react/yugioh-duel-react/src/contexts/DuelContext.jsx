@@ -276,6 +276,24 @@ export function DuelProvider({ children }) {
     }
   }, [])
 
+  const applyLocalState = useCallback((localState) => {
+    if (!localState) return
+    const { instruction: nextInstruction, status, winner, isVictory, ...payload } = localState
+    dispatch({ type: 'SET_GAME_STATE', payload })
+    setInstruction(nextInstruction || '')
+    if (status === 'finished' || winner !== null) {
+      setGameResult({
+        winnerId: winner,
+        isVictory,
+        isDraw: winner == null,
+        playerLP: payload.playerLP,
+        opponentLP: payload.opponentLP,
+        turn: payload.turn,
+      })
+      setShowResult(true)
+    }
+  }, [])
+
   const prevPhaseRef = useRef(null)
   useEffect(() => {
     if (prevPhaseRef.current !== phase.id) {
@@ -530,7 +548,7 @@ export function DuelProvider({ children }) {
       isRemoteDuel, configureRemoteTransport, sendRemoteAttackTarget, sendRemoteCardToZone,
       selectedCard, selectCard, clearSelection,
       activeAction, setActiveAction, executeAction,
-      applyRemoteState, resetDuel,
+      applyRemoteState, applyLocalState, resetDuel,
       gameResult, setGameResult, showResult, setShowResult,
       detailCard, setDetailCard,
       panelMode, panelData, panelLastData, updatePanel, scheduleIdle,

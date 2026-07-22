@@ -63,6 +63,27 @@
   font-size: 1.08rem;
 }
 
+.local-duel-page .card-wrap {
+  --hand-hover-lift: -108px;
+  --hand-hover-scale: 1.55;
+  --hand-selected-lift: -96px;
+  --hand-selected-scale: 1.46;
+}
+
+.local-duel-page .card-wrap--dimmed {
+  opacity: .24;
+  filter: saturate(.24) brightness(.5);
+}
+
+.local-duel-page .card-wrap--hovered .card,
+.local-duel-page .card-wrap--selected .card {
+  box-shadow:
+    0 0 0 1px #000,
+    0 24px 72px rgba(0, 0, 0, .96),
+    0 0 34px 5px var(--card-glow, rgba(232, 168, 32, .5)),
+    inset 0 0 0 1px rgba(255, 238, 190, .25);
+}
+
 .ocg-local-actions {
   width: 340px;
   min-width: 340px;
@@ -275,7 +296,7 @@
 
 .local-card-action-group {
   position: fixed;
-  z-index: 80;
+  z-index: 260;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -425,7 +446,23 @@
   }
 }
 
+@media (max-width: 900px) {
+  .local-duel-page .card-wrap {
+    --hand-hover-lift: -78px;
+    --hand-hover-scale: 1.42;
+    --hand-selected-lift: -70px;
+    --hand-selected-scale: 1.36;
+  }
+}
+
 @media (max-width: 600px) {
+  .local-duel-page .card-wrap {
+    --hand-hover-lift: -62px;
+    --hand-hover-scale: 1.32;
+    --hand-selected-lift: -56px;
+    --hand-selected-scale: 1.28;
+  }
+
   .local-duel-page .ocg-local-actions {
     height: 42vh;
     min-height: 210px;

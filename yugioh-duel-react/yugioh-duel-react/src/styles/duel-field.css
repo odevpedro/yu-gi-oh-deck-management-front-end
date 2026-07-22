@@ -979,7 +979,7 @@ body {
   --rx: 0deg; --ry: 0deg;
   --mx: 50%; --my: 50%;
   --o: 0;
-  animation: hand-enter .55s cubic-bezier(.23,1,.32,1) both;
+  animation: hand-enter .55s cubic-bezier(.23,1,.32,1) backwards;
   animation-delay: calc(var(--i) * 80ms);
 }
 @keyframes hand-enter {

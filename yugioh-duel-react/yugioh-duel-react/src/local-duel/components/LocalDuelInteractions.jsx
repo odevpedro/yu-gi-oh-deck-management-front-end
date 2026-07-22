@@ -1,6 +1,8 @@
-import { useLayoutEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import * as Y from 'ygopro-msg-encode'
 import PromptPanel from './PromptPanel'
+
+const VISIBLE_CARD_LOCATIONS = new Set([2, 4, 8])
 
 function cardAnchorKey(card) {
   const controller = Number(card?.controller)
@@ -10,18 +12,40 @@ function cardAnchorKey(card) {
   return `${controller}:${location}:${sequence}`
 }
 
+function zoneKeyForPlace(place, localPlayer) {
+  const own = Number(place.player) === Number(localPlayer)
+  const prefix = Number(place.location) === 4
+    ? (own ? 'pm' : 'om')
+    : (own ? 'ps' : 'os')
+  return `${prefix}${place.sequence}`
+}
+
+function isVisibleCard(card) {
+  return VISIBLE_CARD_LOCATIONS.has(Number(card?.location))
+}
+
 function groupActions(actions) {
   const groups = new Map()
   actions.forEach(action => {
-    const key = action.anchorKey || `code:${action.code}:${action.id}`
-    if (!groups.has(key)) groups.set(key, { key, code: action.code, actions: [] })
+    const key = action.zoneKey
+      ? `zone:${action.zoneKey}`
+      : action.anchorKey || `code:${action.code}:${action.id}`
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        code: action.code,
+        zoneKey: action.zoneKey,
+        actions: [],
+      })
+    }
     groups.get(key).actions.push(action)
   })
   return [...groups.values()]
 }
 
-function spatialPrompt(prompt, onGame) {
+function immediateSpatialPrompt(prompt, onGame) {
   const message = prompt?.type === 'game' ? prompt.message : null
+
   if (message instanceof Y.YGOProMsgSelectIdleCmd) {
     const groups = [
       [Y.IdleCmdType.SUMMON, 'Invocar', message.summonableCards],
@@ -72,6 +96,73 @@ function spatialPrompt(prompt, onGame) {
     }
   }
 
+  if (message instanceof Y.YGOProMsgSelectEffectYn && isVisibleCard(message)) {
+    return {
+      label: 'Ativar efeito?',
+      actions: [
+        {
+          id: 'effect-yes',
+          label: 'Ativar',
+          code: Number(message.code) || 0,
+          anchorKey: cardAnchorKey(message),
+          run: () => onGame(message.prepareResponse(true)),
+        },
+        {
+          id: 'effect-no',
+          label: 'Ignorar',
+          code: Number(message.code) || 0,
+          anchorKey: cardAnchorKey(message),
+          run: () => onGame(message.prepareResponse(false)),
+        },
+      ],
+      commands: [],
+    }
+  }
+
+  if (message instanceof Y.YGOProMsgSelectChain && message.chains.length > 0) {
+    const forced = message.chains.some(chain => chain.forced)
+    return {
+      label: 'Corrente',
+      actions: message.chains.map((card, index) => ({
+        id: `chain-${index}`,
+        label: 'Encadear',
+        code: Number(card.code) || 0,
+        anchorKey: cardAnchorKey(card),
+        run: () => onGame(message.prepareResponse(Y.IndexResponse(index))),
+      })),
+      commands: forced
+        ? []
+        : [{ label: 'Nao responder', run: () => onGame(message.prepareResponse(null)) }],
+    }
+  }
+
+  if (message instanceof Y.YGOProMsgSelectUnselectCard) {
+    return {
+      label: 'Selecione ou remova',
+      actions: [
+        ...message.selectableCards.map((card, index) => ({
+          id: `select-${index}`,
+          label: 'Selecionar',
+          code: Number(card.code) || 0,
+          anchorKey: cardAnchorKey(card),
+          run: () => onGame(message.prepareResponse(Y.IndexResponse(index))),
+        })),
+        ...message.unselectableCards.map((card, index) => ({
+          id: `unselect-${index}`,
+          label: 'Remover',
+          selected: true,
+          code: Number(card.code) || 0,
+          anchorKey: cardAnchorKey(card),
+          run: () => onGame(message.prepareResponse(Y.IndexResponse(message.selectableCount + index))),
+        })),
+      ],
+      commands: [
+        message.finishable && { label: 'Concluir', run: () => onGame(message.prepareResponse(null)) },
+        message.cancelable && { label: 'Cancelar', run: () => onGame(message.prepareResponse(null)) },
+      ].filter(Boolean),
+    }
+  }
+
   return null
 }
 
@@ -81,10 +172,12 @@ function CardActionLayer({ actions }) {
 
   useLayoutEffect(() => {
     const position = () => {
-      const elements = [...document.querySelectorAll('[data-ocg-key], [data-card-code]')]
+      const elements = [...document.querySelectorAll('[data-ocg-key], [data-card-code], [data-zone-key]')]
       setPlacements(groups.map(group => {
-        const element = elements.find(candidate => candidate.dataset.ocgKey === group.key)
-          || elements.find(candidate => Number(candidate.dataset.cardCode) === group.code)
+        const element = group.zoneKey
+          ? elements.find(candidate => candidate.dataset.zoneKey === group.zoneKey)
+          : elements.find(candidate => candidate.dataset.ocgKey === group.key)
+            || elements.find(candidate => Number(candidate.dataset.cardCode) === group.code)
         if (!element) return { ...group, anchor: null }
         const rect = element.getBoundingClientRect()
         const actionGroup = [...document.querySelectorAll('.local-card-action-group')]
@@ -127,35 +220,121 @@ function CardActionLayer({ actions }) {
           style={{ left: group.anchor.left, top: group.anchor.top }}
         >
           {group.actions.map(action => (
-            <button type="button" key={action.id} onClick={action.run}>{action.label}</button>
+            <button
+              type="button"
+              className={action.selected ? 'is-selected' : ''}
+              key={action.id}
+              onClick={action.run}
+            >
+              {action.label}
+            </button>
           ))}
         </div>
       ))}
       {missing.length > 0 && (
         <div className="local-action-fallback">
-          {missing.map(action => <button type="button" key={action.id} onClick={action.run}>{action.label}</button>)}
+          {missing.map(action => (
+            <button type="button" className={action.selected ? 'is-selected' : ''} key={action.id} onClick={action.run}>
+              {action.label} {action.code || ''}
+            </button>
+          ))}
         </div>
       )}
     </>
   )
 }
 
-export default function LocalDuelInteractions({ prompt, onLobby, onGame }) {
-  const spatial = useMemo(() => spatialPrompt(prompt, onGame), [prompt, onGame])
+function GlobalCommands({ label, commands }) {
+  if (!label && !commands.length) return null
+  return (
+    <div className="local-global-command-dock">
+      {label && <span>{label}</span>}
+      {commands.map(command => (
+        <button type="button" key={command.label} disabled={command.disabled} onClick={command.run}>
+          {command.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export default function LocalDuelInteractions({ prompt, localPlayer, onLobby, onGame }) {
+  const message = prompt?.type === 'game' ? prompt.message : null
+  const [selectedCards, setSelectedCards] = useState([])
+  const [selectedPlaces, setSelectedPlaces] = useState([])
+
+  useEffect(() => {
+    setSelectedCards([])
+    setSelectedPlaces([])
+  }, [message])
+
+  const immediate = useMemo(() => immediateSpatialPrompt(prompt, onGame), [prompt, onGame])
+
+  const selection = useMemo(() => {
+    if (message instanceof Y.YGOProMsgSelectCard
+        || message instanceof Y.YGOProMsgSelectTribute
+        || message instanceof Y.YGOProMsgSelectSum) {
+      const cards = message.cards || []
+      if (!cards.length || !cards.every(isVisibleCard)) return null
+      const minimum = message instanceof Y.YGOProMsgSelectSum ? 1 : message.min
+      const maximum = message.max || cards.length
+      const valid = selectedCards.length >= minimum && selectedCards.length <= maximum
+      return {
+        label: `Selecione cartas (${minimum}-${maximum})`,
+        actions: cards.map((card, index) => ({
+          id: `target-${index}`,
+          label: selectedCards.includes(index) ? 'Selecionada' : 'Selecionar',
+          selected: selectedCards.includes(index),
+          code: Number(card.code) || 0,
+          anchorKey: cardAnchorKey(card),
+          run: () => setSelectedCards(current => current.includes(index)
+            ? current.filter(value => value !== index)
+            : current.length < maximum ? [...current, index] : current),
+        })),
+        commands: [
+          {
+            label: 'Confirmar',
+            disabled: !valid,
+            run: () => onGame(message.prepareResponse(selectedCards.map(Y.IndexResponse))),
+          },
+          message.cancelable && { label: 'Cancelar', run: () => onGame(message.prepareResponse(null)) },
+        ].filter(Boolean),
+      }
+    }
+
+    if (message instanceof Y.YGOProMsgSelectPlace || message instanceof Y.YGOProMsgSelectDisField) {
+      const places = message.getSelectablePlaces()
+      const valid = selectedPlaces.length === message.count
+      return {
+        label: `Selecione ${message.count} zona(s)`,
+        actions: places.map((place, index) => ({
+          id: `place-${index}`,
+          label: selectedPlaces.includes(index) ? 'Selecionada' : 'Selecionar zona',
+          selected: selectedPlaces.includes(index),
+          zoneKey: zoneKeyForPlace(place, localPlayer),
+          run: () => setSelectedPlaces(current => current.includes(index)
+            ? current.filter(value => value !== index)
+            : current.length < message.count ? [...current, index] : current),
+        })),
+        commands: [{
+          label: 'Confirmar zonas',
+          disabled: !valid,
+          run: () => onGame(message.prepareResponse(selectedPlaces.map(index => places[index]))),
+        }],
+      }
+    }
+
+    return null
+  }, [message, localPlayer, onGame, selectedCards, selectedPlaces])
 
   if (!prompt) return null
 
+  const spatial = selection || immediate
   if (spatial) {
     return (
       <>
         <CardActionLayer actions={spatial.actions} />
-        {spatial.commands.length > 0 && (
-          <div className="local-global-command-dock">
-            {spatial.commands.map(command => (
-              <button type="button" key={command.label} onClick={command.run}>{command.label}</button>
-            ))}
-          </div>
-        )}
+        <GlobalCommands label={spatial.label} commands={spatial.commands} />
       </>
     )
   }

@@ -89,6 +89,7 @@ export default function LocalDuelPage() {
           <DuelField showPhaseButton={false} opponentHandCount={runtimeState.zones[`${runtimeState.localPlayer === 0 ? 1 : 0}:2`]?.filter(Boolean).length || 0} />
           <LocalDuelInteractions
             prompt={runtimeState.prompt}
+            localPlayer={runtimeState.localPlayer}
             onLobby={(type, value) => client.respondLobby(type, value)}
             onGame={payload => client.respondGame(payload)}
           />

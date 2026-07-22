@@ -21,6 +21,48 @@
   position: relative;
 }
 
+.local-duel-page .context-panel {
+  width: 390px;
+  min-width: 390px;
+}
+
+.local-duel-page .context-panel > div {
+  padding: 20px 18px;
+}
+
+.local-duel-page .cp-card-name {
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.local-duel-page .cp-card-type,
+.local-duel-page .cp-meta-row {
+  font-size: .68rem;
+}
+
+.local-duel-page .cp-label {
+  font-size: .5rem;
+}
+
+.local-duel-page .cp-section--art {
+  display: flex;
+  justify-content: center;
+}
+
+.local-duel-page .cp-art-frame {
+  width: min(100%, 300px);
+}
+
+.local-duel-page .cp-effect-text {
+  color: rgba(245, 232, 204, .86);
+  font-size: .78rem;
+  line-height: 1.58;
+}
+
+.local-duel-page .cp-stat-val {
+  font-size: 1.08rem;
+}
+
 .ocg-local-actions {
   width: 340px;
   min-width: 340px;
@@ -270,6 +312,26 @@
   background: #6b4219;
 }
 
+.local-card-action-group button.is-selected,
+.local-action-fallback button.is-selected {
+  border-color: #f0c765;
+  background: #84521e;
+  color: #fff;
+}
+
+.local-global-command-dock button:disabled {
+  cursor: not-allowed;
+  opacity: .42;
+}
+
+.local-global-command-dock > span {
+  align-self: center;
+  color: rgba(255, 244, 215, .78);
+  font-family: 'Orbitron', monospace;
+  font-size: .46rem;
+  font-weight: 700;
+}
+
 .local-global-command-dock,
 .local-action-fallback {
   position: absolute;
@@ -349,6 +411,17 @@
   .local-duel-page .local-duel-board {
     order: 1;
     min-height: 0;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1250px) {
+  .local-duel-page .context-panel {
+    width: 340px;
+    min-width: 340px;
+  }
+
+  .local-duel-page .cp-art-frame {
+    width: min(100%, 250px);
   }
 }
 

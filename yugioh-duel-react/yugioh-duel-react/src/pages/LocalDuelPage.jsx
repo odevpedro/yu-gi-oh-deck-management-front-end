@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDuel } from '../contexts/DuelContext'
 import HUD from '../components/HUD'
+import ContextPanel from '../components/ContextPanel'
 import DuelField from '../components/DuelField'
 import PhaseOverlay from '../components/PhaseOverlay'
 import ResultScreen from '../components/ResultScreen'
-import PromptPanel from '../local-duel/components/PromptPanel'
+import LocalDuelInteractions from '../local-duel/components/LocalDuelInteractions'
 import { BLUE_EYES_DECK, LocalDuelClient } from '../local-duel/duel/LocalDuelClient'
 import { preloadCards } from '../local-duel/duel/cardDatabase'
 import { mapLocalDuelState } from '../local-duel/localStateMapper'
@@ -83,24 +84,19 @@ export default function LocalDuelPage() {
       </div>
       <HUD onConcede={() => client.surrender()} />
       <div className="board-layout">
-        <aside className="context-panel ocg-local-actions">
-          <div className="ocg-local-summary">
-            <strong>BLUE-EYES 2025</strong>
-            <span>40 MAIN / 15 EXTRA</span>
-          </div>
-          <PromptPanel
+        <ContextPanel />
+        <div className="local-duel-board">
+          <DuelField showPhaseButton={false} opponentHandCount={runtimeState.zones[`${runtimeState.localPlayer === 0 ? 1 : 0}:2`]?.filter(Boolean).length || 0} />
+          <LocalDuelInteractions
             prompt={runtimeState.prompt}
             onLobby={(type, value) => client.respondLobby(type, value)}
             onGame={payload => client.respondGame(payload)}
           />
           {error && <p className="ocg-local-error">{error}</p>}
-          <details className="ocg-local-log">
+          <details className="ocg-local-log local-engine-log">
             <summary>Eventos do motor</summary>
             <div>{runtimeState.log.map((line, index) => <code key={`${line}-${index}`}>{line}</code>)}</div>
           </details>
-        </aside>
-        <div className="local-duel-board">
-          <DuelField showPhaseButton={false} opponentHandCount={runtimeState.zones[`${runtimeState.localPlayer === 0 ? 1 : 0}:2`]?.filter(Boolean).length || 0} />
         </div>
       </div>
       <PhaseOverlay />

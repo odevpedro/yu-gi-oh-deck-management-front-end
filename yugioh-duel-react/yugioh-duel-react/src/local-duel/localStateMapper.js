@@ -58,6 +58,7 @@ async function displayCard(query, identity) {
     def: metadata.defense,
     url: imageUrl,
     card_images: [{ image_url: imageUrl }],
+    ocgKey: `${query.controller}:${query.location}:${query.sequence}`,
   }
 }
 

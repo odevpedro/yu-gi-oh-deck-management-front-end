@@ -165,6 +165,8 @@ export default function CardWrap({ card, index, total, hovered, selected, onHove
       className={cls}
       data-t={t}
       data-i={i}
+      data-card-code={card?.cardId ?? card?.code ?? ''}
+      data-ocg-key={card?.ocgKey ?? ''}
       style={{
         '--i': i,
         '--fan': fan,

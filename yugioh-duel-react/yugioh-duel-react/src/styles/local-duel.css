@@ -231,6 +231,105 @@
   font-size: .46rem;
 }
 
+.local-card-action-group {
+  position: fixed;
+  z-index: 80;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  width: max-content;
+  max-width: min(260px, calc(100vw - 16px));
+  transform: translate(-50%, -100%);
+  pointer-events: auto;
+}
+
+.local-card-action-group.is-below {
+  transform: translate(-50%, 0);
+}
+
+.local-card-action-group button,
+.local-global-command-dock button,
+.local-action-fallback button {
+  min-height: 28px;
+  padding: 5px 8px;
+  border: 1px solid rgba(225, 177, 74, .72);
+  border-radius: 3px;
+  background: rgba(24, 17, 10, .96);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .42);
+  color: #fff4d7;
+  font-family: 'Orbitron', monospace;
+  font-size: .46rem;
+  font-weight: 700;
+}
+
+.local-card-action-group button:hover,
+.local-global-command-dock button:hover,
+.local-action-fallback button:hover {
+  border-color: #f0c765;
+  background: #6b4219;
+}
+
+.local-global-command-dock,
+.local-action-fallback {
+  position: absolute;
+  left: 50%;
+  z-index: 70;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: calc(100% - 24px);
+  transform: translateX(-50%);
+}
+
+.local-global-command-dock {
+  top: calc(50% + 28px);
+}
+
+.local-action-fallback {
+  bottom: 78px;
+}
+
+.local-duel-page .local-prompt-dock {
+  position: absolute;
+  right: 12px;
+  bottom: 54px;
+  z-index: 75;
+  width: min(420px, calc(100% - 24px));
+  min-width: 0;
+  height: auto;
+  max-height: min(48vh, 430px);
+  overflow: hidden;
+  border: 1px solid rgba(184, 115, 51, .5);
+  background: rgba(18, 13, 9, .97);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, .55);
+}
+
+.local-duel-page .local-prompt-dock .prompt-panel {
+  max-height: min(48vh, 430px);
+}
+
+.local-engine-log {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 30;
+  width: min(240px, calc(100% - 16px));
+  max-height: 140px;
+  border: 1px solid rgba(184, 115, 51, .25);
+  background: rgba(12, 9, 6, .9);
+}
+
+.local-duel-page .ocg-local-error {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 90;
+  max-width: calc(100% - 32px);
+  transform: translateX(-50%);
+}
+
 @media (max-width: 900px) {
   .local-duel-page > .board-layout {
     flex-direction: column;
@@ -265,5 +364,29 @@
 
   .ocg-local-actions .prompt-content {
     padding: 8px;
+  }
+
+  .local-duel-page .local-prompt-dock {
+    right: 8px;
+    bottom: 34px;
+    width: calc(100% - 16px);
+    min-height: 0;
+    max-height: 46vh;
+  }
+
+  .local-card-action-group button,
+  .local-global-command-dock button,
+  .local-action-fallback button {
+    min-height: 26px;
+    padding: 4px 6px;
+    font-size: .4rem;
+  }
+
+  .local-global-command-dock {
+    top: calc(50% + 18px);
+  }
+
+  .local-engine-log {
+    display: none;
   }
 }

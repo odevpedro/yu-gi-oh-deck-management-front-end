@@ -3,6 +3,8 @@ import * as Y from 'ygopro-msg-encode'
 import blueEyesYdk from '../AI_BE2025.ydk?raw'
 import { parseModernUpdateCard, parseModernUpdateData } from './modernQuery'
 import { parseModernGameMessage } from './modernPrompt'
+import { VisualEventQueue, EVENTS } from '../../fx/VisualEventQueue'
+import { TranscriptRecorder } from '../transcript/TranscriptRecorder'
 
 const PHASE_NAMES = {
   1: 'DRAW',
@@ -84,6 +86,19 @@ export class LocalDuelClient {
     this.buffer = new Uint8Array(0)
     this.botLaunched = false
     this.startTimer = null
+    this.visualQueue = new VisualEventQueue({
+      onEventStart: event => this.handleVisualEvent(event),
+      onDrain: () => this.emit({ animation: null, windBotThinking: null }),
+    })
+    this.transcript = new TranscriptRecorder()
+  }
+
+  handleVisualEvent(event) {
+    if (event.type === EVENTS.WAITING) {
+      this.emit({ windBotThinking: true })
+      return
+    }
+    this.emit({ animation: { type: event.type, data: event.data } })
   }
 
   snapshot() {
@@ -93,6 +108,9 @@ export class LocalDuelClient {
   emit(patch = {}) {
     this.state = { ...this.state, ...patch }
     this.onChange(this.state)
+    if (patch.prompt !== undefined) this.transcript.recordPrompt(patch.prompt)
+    if (patch.lp || patch.turn || patch.phase) this.transcript.recordState(this.state)
+    if (patch.winner !== undefined) this.transcript.stop()
   }
 
   addLog(text) {
@@ -295,6 +313,8 @@ export class LocalDuelClient {
     this.addLog(message.constructor.name.replace(/^YGOProMsg/, ''))
 
     if (message instanceof Y.YGOProMsgStart) {
+      this.transcript.start()
+      this.transcript.record('duel', 'start', { playerCount: 2 })
       const localPlayer = message.playerNumber ?? this.state.localPlayer
       this.emit({
         localPlayer,
@@ -304,6 +324,13 @@ export class LocalDuelClient {
       })
     } else if (message instanceof Y.YGOProMsgNewTurn) {
       this.emit({ turn: this.state.turn + 1, turnPlayer: message.player, prompt: null })
+      const turnPlayer = message.player
+      if (turnPlayer !== this.state.localPlayer) {
+        this.visualQueue.push(EVENTS.WAITING)
+      } else {
+        this.visualQueue.clear()
+        this.emit({ windBotThinking: false })
+      }
     } else if (message instanceof Y.YGOProMsgNewPhase) {
       this.emit({ phase: PHASE_NAMES[message.phase] || `FASE ${message.phase}`, prompt: null })
     } else if (message instanceof Y.YGOProMsgUpdateData) {
@@ -312,25 +339,118 @@ export class LocalDuelClient {
       this.updateCard(message.controller, message.location, message.sequence, message.card)
     } else if (message instanceof Y.YGOProMsgMove) {
       this.moveCard(message)
+      this.visualQueue.push(EVENTS.MOVE, {
+        code: message.code,
+        previous: message.previous,
+        current: message.current,
+      })
+    } else if (message instanceof Y.YGOProMsgSummoning) {
+      this.visualQueue.push(EVENTS.SUMMONING, {
+        code: message.code,
+        controller: message.controller,
+        location: message.location,
+        sequence: message.sequence,
+      })
+    } else if (message instanceof Y.YGOProMsgSummoned) {
+      this.visualQueue.push(EVENTS.SUMMONED)
+    } else if (message instanceof Y.YGOProMsgSpSummoning) {
+      this.visualQueue.push(EVENTS.SPSUMMONING, {
+        code: message.code,
+        controller: message.controller,
+        location: message.location,
+        sequence: message.sequence,
+      })
+    } else if (message instanceof Y.YGOProMsgSpSummoned) {
+      this.visualQueue.push(EVENTS.SPSUMMONED)
+    } else if (message instanceof Y.YGOProMsgPosChange) {
+      this.visualQueue.push(EVENTS.POS_CHANGE, {
+        code: message.code,
+        card: message.card,
+        previousPosition: message.previousPosition,
+        currentPosition: message.currentPosition,
+      })
+    } else if (message instanceof Y.YGOProMsgChainSolving) {
+      this.visualQueue.push(EVENTS.CHAIN_SOLVING, {
+        chainCount: message.chainCount,
+      })
+    } else if (message instanceof Y.YGOProMsgChainSolved) {
+      this.visualQueue.push(EVENTS.CHAIN_SOLVED)
     } else if (message instanceof Y.YGOProMsgDraw) {
       this.applyDraw(message)
+      this.visualQueue.push(EVENTS.DRAW, {
+        player: message.player,
+        count: message.cards.length,
+        code: message.cards[0],
+      })
     } else if (message instanceof Y.YGOProMsgLpUpdate) {
       this.setLp(message.player, message.lp)
+      this.visualQueue.push(EVENTS.LP_UPDATE, {
+        player: message.player,
+        lp: message.lp,
+      })
     } else if (message instanceof Y.YGOProMsgDamage) {
       this.setLp(message.player, Math.max(0, this.state.lp[message.player] - message.value))
+      this.visualQueue.push(EVENTS.DAMAGE, {
+        player: message.player,
+        value: message.value,
+      })
     } else if (message instanceof Y.YGOProMsgRecover) {
       this.setLp(message.player, this.state.lp[message.player] + message.value)
+      this.visualQueue.push(EVENTS.RECOVER, {
+        player: message.player,
+        value: message.value,
+      })
     } else if (message instanceof Y.YGOProMsgPayLpCost) {
       this.setLp(message.player, Math.max(0, this.state.lp[message.player] - message.cost))
+      this.visualQueue.push(EVENTS.DAMAGE, {
+        player: message.player,
+        value: message.cost,
+      })
+    } else if (message instanceof Y.YGOProMsgConfirmCards) {
+      const cards = (message.cards || []).filter(c => c.code > 0)
+      if (cards.length > 0) {
+        this.visualQueue.push(EVENTS.REVEAL, { cards })
+      }
+    } else if (message instanceof Y.YGOProMsgConfirmDeckTop) {
+      const cards = (message.cards || []).filter(c => c.code > 0)
+      if (cards.length > 0) {
+        this.visualQueue.push(EVENTS.REVEAL, { cards })
+      }
     } else if (message instanceof Y.YGOProMsgWin) {
-      this.emit({ winner: message.player, status: 'finished', statusText: 'Partida concluida pelo ocgcore', prompt: null })
+      this.visualQueue.clear()
+      this.emit({ winner: message.player, status: 'finished', statusText: 'Partida concluida pelo ocgcore', prompt: null, animation: null, windBotThinking: false })
     } else if (message instanceof Y.YGOProMsgWaiting) {
       this.emit({ prompt: null, statusText: 'Aguardando a jogada do WindBot...' })
-    } else if (message instanceof Y.YGOProMsgSelectChain && message.count === 0 && message.chains.length === 0) {
-      this.addLog('Corrente vazia respondida automaticamente')
-      this.respondGame(message.prepareResponse(null))
+      this.visualQueue.push(EVENTS.WAITING)
+    } else if (message instanceof Y.YGOProMsgAttack) {
+      this.visualQueue.push(EVENTS.ATTACK, {
+        attacker: message.attacker,
+        defender: message.defender,
+      })
+    } else if (message instanceof Y.YGOProMsgBattle) {
+      this.visualQueue.push(EVENTS.ATTACK, {
+        attacker: message.attacker.location,
+        defender: message.defender.location,
+        attackerAtk: message.attacker.atk,
+        defenderAtk: message.defender.atk,
+        attackerState: message.attackerBattleState,
+        defenderState: message.defenderBattleState,
+      })
+    } else if (message instanceof Y.YGOProMsgSelectChain) {
+      if (message.count === 0 && message.chains.length === 0) {
+        this.addLog('Corrente vazia respondida automaticamente')
+        this.respondGame(message.prepareResponse(null))
+      } else {
+        this.visualQueue.pause()
+        this.emit({ animation: { type: 'chain', data: { count: message.chains.length } }, windBotThinking: false })
+        setTimeout(() => {
+          this.emit({ prompt: { type: 'game', message }, statusText: 'Sua decisao', animation: null })
+        }, 600)
+      }
     } else if (typeof message.prepareResponse === 'function') {
-      this.emit({ prompt: { type: 'game', message }, statusText: 'Sua decisao' })
+      this.visualQueue.clear()
+      this.visualQueue.pause()
+      this.emit({ prompt: { type: 'game', message }, statusText: 'Sua decisao', animation: null, windBotThinking: false })
     }
   }
 
@@ -423,6 +543,8 @@ export class LocalDuelClient {
     response.response = payload
     this.send(response)
     this.emit({ prompt: null, statusText: 'Resposta enviada ao ocgcore' })
+    this.transcript.recordResponse('game', payload)
+    this.visualQueue.resume()
   }
 
   surrender() {
@@ -431,6 +553,11 @@ export class LocalDuelClient {
 
   send(message) {
     this.sendRaw(message.toFullPayload())
+  }
+
+  setAnimationSpeed(speed) {
+    this.visualQueue.setSpeed(speed)
+    this.emit({ animationSpeed: speed })
   }
 
   sendRaw(payload) {

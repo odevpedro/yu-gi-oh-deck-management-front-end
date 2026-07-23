@@ -258,7 +258,18 @@ function GlobalCommands({ label, commands }) {
   )
 }
 
-export default function LocalDuelInteractions({ prompt, localPlayer, onLobby, onGame }) {
+function WindBotThinking() {
+  return (
+    <div className="windbot-thinking">
+      <span className="windbot-thinking-dot" />
+      <span className="windbot-thinking-dot" />
+      <span className="windbot-thinking-dot" />
+      <span>WindBot pensando</span>
+    </div>
+  )
+}
+
+export default function LocalDuelInteractions({ prompt, localPlayer, windBotThinking, onLobby, onGame }) {
   const message = prompt?.type === 'game' ? prompt.message : null
   const [selectedCards, setSelectedCards] = useState([])
   const [selectedPlaces, setSelectedPlaces] = useState([])
@@ -327,12 +338,17 @@ export default function LocalDuelInteractions({ prompt, localPlayer, onLobby, on
     return null
   }, [message, localPlayer, onGame, selectedCards, selectedPlaces])
 
-  if (!prompt) return null
+  if (!prompt && windBotThinking) {
+    return <WindBotThinking />
+  }
+
+  if (!prompt && !windBotThinking) return null
 
   const spatial = selection || immediate
   if (spatial) {
     return (
       <>
+        {windBotThinking && <WindBotThinking />}
         <CardActionLayer actions={spatial.actions} />
         <GlobalCommands label={spatial.label} commands={spatial.commands} />
       </>
@@ -341,6 +357,7 @@ export default function LocalDuelInteractions({ prompt, localPlayer, onLobby, on
 
   return (
     <div className="ocg-local-actions local-prompt-dock">
+      {windBotThinking && <WindBotThinking />}
       <PromptPanel prompt={prompt} onLobby={onLobby} onGame={onGame} />
     </div>
   )

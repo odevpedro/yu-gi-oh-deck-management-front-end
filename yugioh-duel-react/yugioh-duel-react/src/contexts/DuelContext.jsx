@@ -531,7 +531,7 @@ export function DuelProvider({ children }) {
     <DuelContext.Provider value={{
       turn, phase, phaseIndex, drawnThisTurn, turnTimer,
       canDraw, canSummon, canAttack,
-      nextPhase, markDrawn, phaseOverlay,
+      nextPhase, markDrawn, phaseOverlay, setPhaseOverlay,
       flags, setNormalSummoned, setPositionChanged, setZoneAttacked,
       playerLP, opponentLP, dealDamage,
       deckCards, deckRemaining, initDeck, drawFromDeck,

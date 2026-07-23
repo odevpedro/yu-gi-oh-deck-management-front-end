@@ -32,8 +32,8 @@ export class VisualEventQueue {
     this.paused = false
     this.onEventStart = options.onEventStart ?? null
     this.onDrain = options.onDrain ?? null
-    this.baseDelay = options.baseDelay ?? 350
-    this.minDelay = options.minDelay ?? 80
+    this.baseDelay = options.baseDelay ?? 600
+    this.minDelay = options.minDelay ?? 120
   }
 
   get delay() {

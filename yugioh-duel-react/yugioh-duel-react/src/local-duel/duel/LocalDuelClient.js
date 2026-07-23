@@ -1,6 +1,11 @@
 import YGOProDeck from 'ygopro-deck-encode'
 import * as Y from 'ygopro-msg-encode'
 import blueEyesYdk from '../AI_BE2025.ydk?raw'
+import darkMagicianYdk from '../DARK_MAGICIAN.ydk?raw'
+import dragonBeatdownYdk from '../DRAGON_BEATDOWN.ydk?raw'
+import chaosDragonYdk from '../CHAOS_DRAGON.ydk?raw'
+import dragonRulerYdk from '../DRAGON_RULER.ydk?raw'
+import pureDragonYdk from '../PURE_DRAGON.ydk?raw'
 import { parseModernUpdateCard, parseModernUpdateData } from './modernQuery'
 import { parseModernGameMessage } from './modernPrompt'
 import { VisualEventQueue, EVENTS } from '../../fx/VisualEventQueue'
@@ -39,6 +44,20 @@ function parseDeck(source) {
 }
 
 export const BLUE_EYES_DECK = parseDeck(blueEyesYdk)
+export const DARK_MAGICIAN_DECK = parseDeck(darkMagicianYdk)
+export const DRAGON_BEATDOWN_DECK = parseDeck(dragonBeatdownYdk)
+export const CHAOS_DRAGON_DECK = parseDeck(chaosDragonYdk)
+export const DRAGON_RULER_DECK = parseDeck(dragonRulerYdk)
+export const PURE_DRAGON_DECK = parseDeck(pureDragonYdk)
+
+export const AVAILABLE_DECKS = [
+  { id: 'blue-eyes', name: 'Blue-Eyes 2025', deck: BLUE_EYES_DECK },
+  { id: 'dark-magician', name: 'Dark Magician', deck: DARK_MAGICIAN_DECK },
+  { id: 'dragon-beatdown', name: 'Dragon Beatdown', deck: DRAGON_BEATDOWN_DECK },
+  { id: 'chaos-dragon', name: 'Chaos Dragon', deck: CHAOS_DRAGON_DECK },
+  { id: 'dragon-ruler', name: 'Dragon Ruler', deck: DRAGON_RULER_DECK },
+  { id: 'pure-dragon', name: 'Pure Dragon', deck: PURE_DRAGON_DECK },
+]
 
 function emptyState() {
   return {
@@ -118,12 +137,13 @@ export class LocalDuelClient {
     this.emit({ log })
   }
 
-  async start(playerName = 'Duelista') {
+  async start(playerName = 'Duelista', deck = BLUE_EYES_DECK) {
     this.disconnect()
+    this.playerDeck = deck
     this.state = emptyState()
     this.emit({ status: 'creating', statusText: 'Criando sala nativa...' })
 
-    const roomName = `Local Blue-Eyes ${Date.now().toString().slice(-6)}`
+    const roomName = `Local ${Date.now().toString().slice(-6)}`
     const response = await fetch('/evolution/api/room', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -275,10 +295,10 @@ export class LocalDuelClient {
 
   uploadDeck() {
     const update = new Y.YGOProCtosUpdateDeck()
-    update.deck = new YGOProDeck(BLUE_EYES_DECK)
+    update.deck = new YGOProDeck(this.playerDeck || BLUE_EYES_DECK)
     this.send(update)
     this.send(new Y.YGOProCtosHsReady())
-    this.emit({ statusText: 'Deck Blue-Eyes real enviado; aguardando WindBot...' })
+    this.emit({ statusText: 'Deck enviado; aguardando WindBot...' })
   }
 
   async launchBot() {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { lazy, Suspense, useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { DuelProvider } from './contexts/DuelContext'
@@ -13,6 +13,8 @@ import NotFoundPage from './pages/NotFoundPage'
 import HistoryPage from './pages/HistoryPage'
 import MatchmakingPage from './pages/MatchmakingPage'
 import SideDeckPage from './pages/SideDeckPage'
+
+const LocalDuelPage = lazy(() => import('./pages/LocalDuelPage'))
 
 const pageVariants = {
   initial: { opacity: 0, y: 12, scale: 0.98 },
@@ -50,7 +52,7 @@ function AppRoutes() {
           <AnimatedPage><ProtectedRoute><DuelPage /></ProtectedRoute></AnimatedPage>
         } />
         <Route path="/duel/local" element={
-          <AnimatedPage><ProtectedRoute><DuelPage /></ProtectedRoute></AnimatedPage>
+          <AnimatedPage><Suspense fallback={null}><LocalDuelPage /></Suspense></AnimatedPage>
         } />
         <Route path="/matchmaking" element={
           <AnimatedPage><ProtectedRoute><MatchmakingPage /></ProtectedRoute></AnimatedPage>

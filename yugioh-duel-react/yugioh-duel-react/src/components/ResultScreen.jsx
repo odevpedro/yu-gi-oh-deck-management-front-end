@@ -1,7 +1,7 @@
 import { useDuel } from '../contexts/DuelContext'
 import { useEffect, useState } from 'react'
 
-export default function ResultScreen({ onBack }) {
+export default function ResultScreen({ onBack, actionLabel = 'VOLTAR AO LOBBY' }) {
   const { gameResult, showResult, playerLP, opponentLP, turn } = useDuel()
   const [visible, setVisible] = useState(false)
 
@@ -43,7 +43,7 @@ export default function ResultScreen({ onBack }) {
         </div>
         <div className="result-actions">
           <button className="result-btn result-btn--primary" onClick={handleBack} autoFocus>
-            VOLTAR AO LOBBY
+            {actionLabel}
           </button>
         </div>
       </div>

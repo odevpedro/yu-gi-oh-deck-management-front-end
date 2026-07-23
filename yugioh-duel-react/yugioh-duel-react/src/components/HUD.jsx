@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from 'react'
 import { useDuel } from '../contexts/DuelContext'
 import { PHASES } from '../contexts/duelReducer'
 
-export default function HUD() {
+export default function HUD({ onConcede }) {
   const { turn, phase, phaseIndex, nextPhase, turnTimer, playerLP, opponentLP,
           setGameResult, setShowResult, setInstruction } = useDuel()
   const [showConfirm, setShowConfirm] = useState(false)
@@ -48,6 +48,11 @@ export default function HUD() {
   }, [opponentLP])
 
   function handleConcede() {
+    if (onConcede) {
+      onConcede()
+      setShowConfirm(false)
+      return
+    }
     setGameResult({ isVictory: false, isDraw: false, playerLP, opponentLP, turn })
     setShowResult(true)
     setInstruction('VOCE CONCEDEU')

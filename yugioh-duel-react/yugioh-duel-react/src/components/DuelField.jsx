@@ -8,7 +8,7 @@ import DuelLog from './DuelLog'
 import { useDuel } from '../contexts/DuelContext'
 import { PHASES } from '../contexts/duelReducer'
 
-export default function DuelField() {
+export default function DuelField({ showPhaseButton = true, opponentHandCount = 0 }) {
   const { instruction, turn, phase, phaseIndex, nextPhase,
           playerBanished, opponentBanished } = useDuel()
 
@@ -18,8 +18,9 @@ export default function DuelField() {
 
         {/* ── Opponent side ── */}
         <section className="field-side field-side--opponent">
+          {opponentHandCount > 0 && <div className="opponent-hand-indicator">MÃO DO OPONENTE: {opponentHandCount}</div>}
           <div className="field-grid">
-            <Zone type="field" side="opponent" label="FIELD" />
+            <Zone zoneKey="os5" type="field" side="opponent" label="FIELD" />
             {[0,1,2,3,4].map(i => (
               <Zone key={`om${i}`} zoneKey={`om${i}`} type="monster" side="opponent" dataZone={i} />
             ))}
@@ -51,15 +52,17 @@ export default function DuelField() {
             ))}
           </div>
           <div className="fc-phase-name">{phase.label}</div>
-          <button className="fc-next-btn" onClick={nextPhase}>
-            {phaseIndex === PHASES.length - 1 ? 'END TURN' : 'NEXT ›'}
-          </button>
+          {showPhaseButton && (
+            <button className="fc-next-btn" onClick={nextPhase}>
+              {phaseIndex === PHASES.length - 1 ? 'END TURN' : 'NEXT ›'}
+            </button>
+          )}
         </div>
 
         {/* ── Player side ── */}
         <section className="field-side field-side--player">
           <div className="field-grid">
-            <Zone type="field" side="player" label="FIELD" />
+            <Zone zoneKey="ps5" type="field" side="player" label="FIELD" />
             <div id="playerZones" style={{ display: 'contents' }}>
               {[0,1,2,3,4].map(i => (
                 <Zone key={`pm${i}`} zoneKey={`pm${i}`} type="monster" side="player" dataZone={i} />

@@ -77,7 +77,9 @@ function CardView({ card }) {
 
       {card.imageUrl && (
         <div className="cp-section cp-section--art">
-          <img className="cp-art" src={card.imageUrl} alt={card.name} loading="lazy" />
+          <div className="cp-art-frame">
+            <img className="cp-art" src={card.imageUrl} alt={card.name} loading="lazy" />
+          </div>
         </div>
       )}
 

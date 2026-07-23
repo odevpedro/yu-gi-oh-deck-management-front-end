@@ -275,6 +275,8 @@ export default function Zone({
       className={classes}
       data-zone={dataZone}
       data-zone-key={zoneKey}
+      data-card-code={cardData?.card?.cardId ?? cardData?.card?.code ?? ''}
+      data-ocg-key={cardData?.card?.ocgKey ?? ''}
       onMouseEnter={handleMouseEnter}
       onMouseUp={handleMouseUp}
       onClick={side === 'player' ? handlePlayerClick : handleOpponentClick}

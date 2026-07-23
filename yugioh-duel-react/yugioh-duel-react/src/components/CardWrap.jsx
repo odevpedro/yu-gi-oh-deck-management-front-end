@@ -36,9 +36,15 @@ export default function CardWrap({ card, index, total, hovered, selected, onHove
 
   if (focus !== null) {
     if (i === focus) {
-      const liftY = oy - 72
-      const pullX = ox * 0.35
-      transform = `translateX(${pullX - ox}px) rotate(${a * 0.4}deg) translateY(${liftY}px) scale(1.18)`
+      const isHoverFocus = i === hovered
+      const lift = isHoverFocus
+        ? 'var(--hand-hover-lift, -72px)'
+        : 'var(--hand-selected-lift, -72px)'
+      const scale = isHoverFocus
+        ? 'var(--hand-hover-scale, 1.18)'
+        : 'var(--hand-selected-scale, 1.18)'
+      const pullX = ox * 0.18
+      transform = `translateX(${pullX - ox}px) rotate(${a * 0.28}deg) translateY(calc(${oy}px + ${lift})) scale(${scale})`
       zIdx = '200'
     } else {
       const dist  = i - focus
@@ -165,6 +171,8 @@ export default function CardWrap({ card, index, total, hovered, selected, onHove
       className={cls}
       data-t={t}
       data-i={i}
+      data-card-code={card?.cardId ?? card?.code ?? ''}
+      data-ocg-key={card?.ocgKey ?? ''}
       style={{
         '--i': i,
         '--fan': fan,

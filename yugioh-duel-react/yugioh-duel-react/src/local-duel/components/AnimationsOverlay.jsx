@@ -130,12 +130,12 @@ function AttackArrow({ data }) {
     let frameId
     function tick(now) {
       const elapsed = now - start
-      const p = Math.min(elapsed / 600, 1)
+      const p = Math.min(elapsed / 900, 1)
       setProgress(p)
       if (p < 1) {
         frameId = requestAnimationFrame(tick)
       } else {
-        const hideTimer = setTimeout(() => setVisible(false), 100)
+        const hideTimer = setTimeout(() => setVisible(false), 150)
         frameId = hideTimer
       }
     }

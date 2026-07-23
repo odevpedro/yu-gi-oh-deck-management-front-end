@@ -68,7 +68,6 @@ export default function PlayerHand() {
         {handCards.map((card, i) => (
           <motion.div
             key={card.id ?? i}
-            layout
             variants={handCardVariants}
             initial="initial"
             animate="animate"

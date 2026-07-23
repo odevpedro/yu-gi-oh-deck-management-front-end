@@ -8,7 +8,7 @@ import PhaseOverlay from '../components/PhaseOverlay'
 import ResultScreen from '../components/ResultScreen'
 import LocalDuelInteractions from '../local-duel/components/LocalDuelInteractions'
 import AnimationsOverlay from '../local-duel/components/AnimationsOverlay'
-import { BLUE_EYES_DECK, LocalDuelClient } from '../local-duel/duel/LocalDuelClient'
+import { AVAILABLE_DECKS, LocalDuelClient } from '../local-duel/duel/LocalDuelClient'
 import { preloadCards } from '../local-duel/duel/cardDatabase'
 import { mapLocalDuelState } from '../local-duel/localStateMapper'
 
@@ -40,10 +40,13 @@ export default function LocalDuelPage() {
   const navigate = useNavigate()
   const [runtimeState, setRuntimeState] = useState(INITIAL_RUNTIME_STATE)
   const [error, setError] = useState('')
+  const [selectedDeckId, setSelectedDeckId] = useState('blue-eyes')
   const clientRef = useRef(null)
   const stateHandlerRef = useRef(null)
   const mappingVersionRef = useRef(0)
   const { applyLocalState, configureRemoteTransport, resetDuel, setPhaseOverlay } = useDuel()
+
+  const selectedDeck = AVAILABLE_DECKS.find(d => d.id === selectedDeckId) || AVAILABLE_DECKS[0]
 
   stateHandlerRef.current = nextState => {
     setRuntimeState(nextState)
@@ -58,28 +61,29 @@ export default function LocalDuelPage() {
   }
   const client = clientRef.current
 
-  const start = async () => {
+  const start = useCallback(async (deck) => {
     setError('')
     try {
-      await client.start('Local Player')
+      await client.start('Local Player', deck)
     } catch (reason) {
       setError(reason.message || String(reason))
       client.emit({ status: 'error', statusText: 'Falha ao iniciar o duelo local' })
     }
-  }
+  }, [client])
 
   useEffect(() => {
     resetDuel()
     configureRemoteTransport({ sendAction: () => {}, advancePhase: () => {} })
-    void preloadCards([...BLUE_EYES_DECK.main, ...BLUE_EYES_DECK.extra]).catch(() => {})
-    const startTimer = setTimeout(() => { void start() }, 0)
+    const deck = selectedDeck.deck
+    void preloadCards([...deck.main, ...deck.extra]).catch(() => {})
+    const startTimer = setTimeout(() => { void start(deck) }, 0)
     return () => {
       clearTimeout(startTimer)
       mappingVersionRef.current += 1
       client.disconnect()
       configureRemoteTransport(null)
     }
-  }, [])
+  }, [selectedDeckId])
 
   const prevPhaseRef = useRef('')
   useEffect(() => {
@@ -94,6 +98,14 @@ export default function LocalDuelPage() {
       <div className="session-strip">
         <span>OCGCORE LOCAL</span>
         <span>{runtimeState.statusText}</span>
+        <label className="deck-selector">
+          <span>Deck</span>
+          <select value={selectedDeckId} disabled={runtimeState.duelStarted} onChange={event => { setSelectedDeckId(event.target.value); client.disconnect(); const deck = AVAILABLE_DECKS.find(d => d.id === event.target.value)?.deck; if (deck) setTimeout(() => void start(deck), 200) }}>
+            {AVAILABLE_DECKS.map(d => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
+        </label>
         <label className="speed-control">
           <span>Velocidade</span>
           <select value={SPEEDS.indexOf(runtimeState.animationSpeed ?? 1)} onChange={event => client.setAnimationSpeed(SPEEDS[Number(event.target.value)])}>

@@ -974,13 +974,19 @@ body {
   cursor: grab;
   transform-origin: bottom center;
   transform: var(--fan);
-  transition: transform .32s cubic-bezier(.23,1,.32,1), opacity .25s ease, filter .25s ease;
+  transition: transform .28s cubic-bezier(.23,1,.32,1), opacity .25s ease, filter .25s ease;
   z-index: var(--z, 1);
+  will-change: transform;
+  isolation: isolate;
   --rx: 0deg; --ry: 0deg;
   --mx: 50%; --my: 50%;
   --o: 0;
   animation: hand-enter .55s cubic-bezier(.23,1,.32,1) backwards;
   animation-delay: calc(var(--i) * 80ms);
+}
+
+.card-wrap:active {
+  transition-duration: .08s;
 }
 @keyframes hand-enter {
   from { opacity: 0; transform: var(--fan) translateY(60px); }
@@ -1007,7 +1013,7 @@ body {
 }
 
 /* Dimmed */
-.card-wrap--dimmed { opacity: .4; filter: saturate(.3) brightness(.6); }
+.card-wrap--dimmed { opacity: .4; filter: saturate(.3) brightness(.6); transition-duration: .12s; pointer-events: none; }
 
 /* Glow por tipo */
 .card-wrap[data-t="MONSTER"] { --card-glow: rgba(232,168,32,.6); }

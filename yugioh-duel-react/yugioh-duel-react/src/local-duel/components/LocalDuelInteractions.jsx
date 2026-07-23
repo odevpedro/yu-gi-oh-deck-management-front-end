@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import * as Y from 'ygopro-msg-encode'
 import PromptPanel from './PromptPanel'
 
@@ -166,82 +167,54 @@ function immediateSpatialPrompt(prompt, onGame) {
   return null
 }
 
-function CardActionLayer({ actions }) {
-  const groups = useMemo(() => groupActions(actions), [actions])
-  const [placements, setPlacements] = useState([])
+function CardActionPopup({ open, groups, onClose }) {
+  const [placement, setPlacement] = useState(null)
 
   useLayoutEffect(() => {
-    const position = () => {
-      const elements = [...document.querySelectorAll('[data-ocg-key], [data-card-code], [data-zone-key]')]
-      setPlacements(groups.map(group => {
-        const element = group.zoneKey
-          ? elements.find(candidate => candidate.dataset.zoneKey === group.zoneKey)
-          : elements.find(candidate => candidate.dataset.ocgKey === group.key)
-            || elements.find(candidate => Number(candidate.dataset.cardCode) === group.code)
-        if (!element) return { ...group, anchor: null }
-        const rect = element.getBoundingClientRect()
-        const actionGroup = [...document.querySelectorAll('.local-card-action-group')]
-          .find(candidate => candidate.dataset.anchorKey === group.key)
-        const actionRect = actionGroup?.getBoundingClientRect()
-        const halfWidth = (actionRect?.width || 0) / 2
-        const actionHeight = actionRect?.height || 0
-        const placeBelow = rect.top - actionHeight - 6 < 104
-        return {
-          ...group,
-          anchor: {
-            left: Math.max(8 + halfWidth, Math.min(window.innerWidth - 8 - halfWidth, rect.left + rect.width / 2)),
-            top: placeBelow ? rect.bottom + 6 : rect.top - 6,
-            placeBelow,
-          },
-        }
-      }))
-    }
-    const frame = requestAnimationFrame(position)
-    const timer = setTimeout(position, 120)
-    window.addEventListener('resize', position)
-    window.addEventListener('scroll', position, true)
-    return () => {
-      cancelAnimationFrame(frame)
-      clearTimeout(timer)
-      window.removeEventListener('resize', position)
-      window.removeEventListener('scroll', position, true)
-    }
-  }, [groups])
+    if (!open) return
+    const elements = [...document.querySelectorAll('[data-ocg-key], [data-card-code], [data-zone-key]')]
+    const element = open.zoneKey
+      ? elements.find(candidate => candidate.dataset.zoneKey === open.zoneKey)
+      : elements.find(candidate => candidate.dataset.ocgKey === open.groupKey)
+        || elements.find(candidate => Number(candidate.dataset.cardCode) === open.code)
+    if (!element) { setPlacement(null); return }
+    const rect = element.getBoundingClientRect()
+    setPlacement({ left: rect.left, top: rect.top, width: rect.width, height: rect.height })
+  }, [open])
 
-  const missing = placements.filter(group => !group.anchor).flatMap(group => group.actions)
-
-  return (
-    <>
-      {placements.filter(group => group.anchor).map(group => (
-        <div
-          className={`local-card-action-group ${group.anchor.placeBelow ? 'is-below' : ''}`}
-          key={group.key}
-          data-anchor-key={group.key}
-          style={{ left: group.anchor.left, top: group.anchor.top }}
-        >
-          {group.actions.map(action => (
-            <button
-              type="button"
-              className={action.selected ? 'is-selected' : ''}
-              key={action.id}
-              onClick={action.run}
-            >
-              {action.label}
-            </button>
-          ))}
-        </div>
-      ))}
-      {missing.length > 0 && (
-        <div className="local-action-fallback">
-          {missing.map(action => (
-            <button type="button" className={action.selected ? 'is-selected' : ''} key={action.id} onClick={action.run}>
-              {action.label} {action.code || ''}
-            </button>
-          ))}
-        </div>
-      )}
-    </>
+  if (!open || !placement) return null
+  return createPortal(
+    <div style={{
+      position: 'fixed', zIndex: 500, pointerEvents: 'all',
+      left: placement.left, top: placement.top,
+      width: placement.width, height: placement.height,
+    }}
+      onClick={e => e.stopPropagation()}
+    >
+      <div style={{
+        position: 'absolute', left: 0, right: 0, bottom: '100%', mb: 4,
+        display: 'flex', flexDirection: 'column', gap: 2,
+        alignItems: 'stretch',
+      }}>
+        {open.actions.map(action => (
+          <button
+            key={action.id}
+            type="button"
+            className={`local-inline-action ${action.selected ? 'is-selected' : ''}`}
+            onClick={() => { action.run(); onClose() }}
+          >
+            {action.label}
+          </button>
+        ))}
+      </div>
+    </div>,
+    document.body
   )
+}
+
+function actionListLabel(groups) {
+  if (!groups?.length) return null
+  return groups.flatMap(g => g.actions).map(a => a.label).join(', ')
 }
 
 function GlobalCommands({ label, commands }) {
@@ -269,17 +242,52 @@ function WindBotThinking() {
   )
 }
 
+function useCloseOnOutsideClick(ref, active) {
+  useEffect(() => {
+    if (!active) return
+    const handler = e => {
+      if (ref.current && !ref.current.contains(e.target)) active()
+    }
+    document.addEventListener('click', handler, true)
+    return () => document.removeEventListener('click', handler, true)
+  }, [ref, active])
+}
+
 export default function LocalDuelInteractions({ prompt, localPlayer, windBotThinking, onLobby, onGame }) {
   const message = prompt?.type === 'game' ? prompt.message : null
   const [selectedCards, setSelectedCards] = useState([])
   const [selectedPlaces, setSelectedPlaces] = useState([])
+  const [activeActionKey, setActiveActionKey] = useState(null)
+  const actionsRef = useRef(null)
 
   useEffect(() => {
     setSelectedCards([])
     setSelectedPlaces([])
+    setActiveActionKey(null)
   }, [message])
 
   const immediate = useMemo(() => immediateSpatialPrompt(prompt, onGame), [prompt, onGame])
+
+  const groups = useMemo(() => {
+    const spatial = selection || immediate
+    if (!spatial?.actions?.length) return []
+    return groupActions(spatial.actions)
+  }, [selection, immediate])
+
+  useCloseOnOutsideClick(actionsRef, () => setActiveActionKey(null))
+
+  const activeGroup = useMemo(() => {
+    if (!activeActionKey) return null
+    const g = groups.find(group => group.key === activeActionKey || group.actions.some(a => a.id === activeActionKey))
+    const actions = g?.actions || groups.flatMap(gg => gg.actions).filter(a => a.id === activeActionKey)
+    if (!actions.length) return null
+    return {
+      groupKey: g?.key || activeActionKey,
+      zoneKey: g?.zoneKey || null,
+      code: g?.code || actions[0]?.code || 0,
+      actions,
+    }
+  }, [activeActionKey, groups])
 
   const selection = useMemo(() => {
     if (message instanceof Y.YGOProMsgSelectCard
@@ -345,11 +353,45 @@ export default function LocalDuelInteractions({ prompt, localPlayer, windBotThin
   if (!prompt && !windBotThinking) return null
 
   const spatial = selection || immediate
-  if (spatial) {
+  if (spatial && spatial.actions.length > 0) {
+    const grouped = groupActions(spatial.actions)
     return (
       <>
         {windBotThinking && <WindBotThinking />}
-        <CardActionLayer actions={spatial.actions} />
+        <CardActionPopup open={activeGroup} groups={grouped} onClose={() => setActiveActionKey(null)} />
+        <div className="local-global-command-dock" ref={actionsRef}>
+          {spatial.label && <span>{spatial.label}</span>}
+          <div className="local-action-strip">
+            {grouped.map(group => {
+              const first = group.actions[0]
+              return (
+                <button
+                  type="button"
+                  key={group.key}
+                  className={activeActionKey === group.key ? 'is-active' : ''}
+                  onClick={() => setActiveActionKey(prev => prev === group.key ? null : group.key)}
+                >
+                  {first.label}{group.actions.length > 1 ? ` (${group.actions.length})` : ''}
+                </button>
+              )
+            })}
+          </div>
+          <div className="local-command-strip">
+            {(spatial.commands || []).map(cmd => (
+              <button type="button" key={cmd.label} disabled={cmd.disabled} onClick={cmd.run}>
+                {cmd.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  if (spatial && !spatial.actions.length && spatial.commands?.length) {
+    return (
+      <>
+        {windBotThinking && <WindBotThinking />}
         <GlobalCommands label={spatial.label} commands={spatial.commands} />
       </>
     )

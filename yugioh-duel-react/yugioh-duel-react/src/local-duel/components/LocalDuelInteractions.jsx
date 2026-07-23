@@ -268,27 +268,6 @@ export default function LocalDuelInteractions({ prompt, localPlayer, windBotThin
 
   const immediate = useMemo(() => immediateSpatialPrompt(prompt, onGame), [prompt, onGame])
 
-  const groups = useMemo(() => {
-    const spatial = selection || immediate
-    if (!spatial?.actions?.length) return []
-    return groupActions(spatial.actions)
-  }, [selection, immediate])
-
-  useCloseOnOutsideClick(actionsRef, () => setActiveActionKey(null))
-
-  const activeGroup = useMemo(() => {
-    if (!activeActionKey) return null
-    const g = groups.find(group => group.key === activeActionKey || group.actions.some(a => a.id === activeActionKey))
-    const actions = g?.actions || groups.flatMap(gg => gg.actions).filter(a => a.id === activeActionKey)
-    if (!actions.length) return null
-    return {
-      groupKey: g?.key || activeActionKey,
-      zoneKey: g?.zoneKey || null,
-      code: g?.code || actions[0]?.code || 0,
-      actions,
-    }
-  }, [activeActionKey, groups])
-
   const selection = useMemo(() => {
     if (message instanceof Y.YGOProMsgSelectCard
         || message instanceof Y.YGOProMsgSelectTribute
@@ -346,6 +325,27 @@ export default function LocalDuelInteractions({ prompt, localPlayer, windBotThin
     return null
   }, [message, localPlayer, onGame, selectedCards, selectedPlaces])
 
+  const groups = useMemo(() => {
+    const spatial = selection || immediate
+    if (!spatial?.actions?.length) return []
+    return groupActions(spatial.actions)
+  }, [selection, immediate])
+
+  useCloseOnOutsideClick(actionsRef, () => setActiveActionKey(null))
+
+  const activeGroup = useMemo(() => {
+    if (!activeActionKey) return null
+    const g = groups.find(group => group.key === activeActionKey || group.actions.some(a => a.id === activeActionKey))
+    const actions = g?.actions || groups.flatMap(gg => gg.actions).filter(a => a.id === activeActionKey)
+    if (!actions.length) return null
+    return {
+      groupKey: g?.key || activeActionKey,
+      zoneKey: g?.zoneKey || null,
+      code: g?.code || actions[0]?.code || 0,
+      actions,
+    }
+  }, [activeActionKey, groups])
+
   if (!prompt && windBotThinking) {
     return <WindBotThinking />
   }
@@ -354,15 +354,14 @@ export default function LocalDuelInteractions({ prompt, localPlayer, windBotThin
 
   const spatial = selection || immediate
   if (spatial && spatial.actions.length > 0) {
-    const grouped = groupActions(spatial.actions)
     return (
       <>
         {windBotThinking && <WindBotThinking />}
-        <CardActionPopup open={activeGroup} groups={grouped} onClose={() => setActiveActionKey(null)} />
+        <CardActionPopup open={activeGroup} groups={groups} onClose={() => setActiveActionKey(null)} />
         <div className="local-global-command-dock" ref={actionsRef}>
           {spatial.label && <span>{spatial.label}</span>}
           <div className="local-action-strip">
-            {grouped.map(group => {
+            {groups.map(group => {
               const first = group.actions[0]
               return (
                 <button
